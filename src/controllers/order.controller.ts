@@ -22,6 +22,12 @@ export interface CustomerDataController {
   advanceOrderStatus(orderId: string): CustomerOrder | null;
   acceptOrder(orderId: string, acceptedBy: string): CustomerOrder | null;
   verifyOrder(orderId: string, code: string): CustomerOrder | null;
+  markArrived(orderId: string): CustomerOrder | null;
+  rateOrder(orderId: string, rating: "yes" | "no"): CustomerOrder | null;
+  rateCustomer(
+    orderId: string,
+    rating: "good" | "regular" | "bad",
+  ): CustomerOrder | null;
   subscribeToStatusChanges(observer: OrderStatusObserver): () => void;
 }
 
@@ -58,6 +64,21 @@ export class OrderController implements CustomerDataController {
 
   verifyOrder(orderId: string, code: string): CustomerOrder | null {
     return this.service.verifyOrder(orderId, code);
+  }
+
+  markArrived(orderId: string): CustomerOrder | null {
+    return this.service.markArrived(orderId);
+  }
+
+  rateOrder(orderId: string, rating: "yes" | "no"): CustomerOrder | null {
+    return this.service.rateOrder(orderId, rating);
+  }
+
+  rateCustomer(
+    orderId: string,
+    rating: "good" | "regular" | "bad",
+  ): CustomerOrder | null {
+    return this.service.rateCustomer(orderId, rating);
   }
 
   subscribeToStatusChanges(observer: OrderStatusObserver): () => void {

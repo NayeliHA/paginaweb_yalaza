@@ -29,6 +29,12 @@ interface OrderContextValue {
   acceptOrder: (orderId: string, acceptedBy: string) => CustomerOrder | null;
   advanceOrderStatus: (orderId: string) => CustomerOrder | null;
   verifyOrder: (orderId: string, code: string) => CustomerOrder | null;
+  markArrived: (orderId: string) => CustomerOrder | null;
+  rateOrder: (orderId: string, rating: "yes" | "no") => CustomerOrder | null;
+  rateCustomer: (
+    orderId: string,
+    rating: "good" | "regular" | "bad",
+  ) => CustomerOrder | null;
 }
 
 const OrderContext = createContext<OrderContextValue | null>(null);
@@ -105,6 +111,24 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     return orderController.verifyOrder(orderId, code);
   }
 
+  function markArrived(orderId: string): CustomerOrder | null {
+    return orderController.markArrived(orderId);
+  }
+
+  function rateOrder(
+    orderId: string,
+    rating: "yes" | "no",
+  ): CustomerOrder | null {
+    return orderController.rateOrder(orderId, rating);
+  }
+
+  function rateCustomer(
+    orderId: string,
+    rating: "good" | "regular" | "bad",
+  ): CustomerOrder | null {
+    return orderController.rateCustomer(orderId, rating);
+  }
+
   const value: OrderContextValue = {
     cart,
     orders,
@@ -123,6 +147,9 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     acceptOrder,
     advanceOrderStatus,
     verifyOrder,
+    markArrived,
+    rateOrder,
+    rateCustomer,
   };
 
   return <OrderContext.Provider value={value}>{children}</OrderContext.Provider>;

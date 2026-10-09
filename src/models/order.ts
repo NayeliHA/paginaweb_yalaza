@@ -50,7 +50,10 @@ interface CustomerOrderCommon {
   paymentLabel: string;
   status: OrderStatus;
   acceptedBy?: string;
+  arrivedAt?: string;
   verifiedAt?: string;
+  customerRating?: "yes" | "no";
+  deliveryRating?: "good" | "regular" | "bad";
   createdAt: string;
 }
 

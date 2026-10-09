@@ -10,7 +10,7 @@ import { orderStatusLabels } from "@/patterns/behavioral/order-state";
 
 export function CustomerDashboard() {
   const { session } = useAuth();
-  const { orders, hydrated } = useOrder();
+  const { orders, hydrated, rateOrder } = useOrder();
   const myOrders = orders.filter(
     (order) =>
       order.customer.id === session?.userId ||
@@ -111,6 +111,37 @@ export function CustomerDashboard() {
                       </p>
                     </div>
                   </div>
+                  {order.status === "delivered" || order.status === "picked_up" ? (
+                    <div className="mt-5 border-t border-cream/10 pt-5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+                        ¿Te gustó el pedido?
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => rateOrder(order.id, "yes")}
+                          className={`rounded-full px-4 py-2 text-xs font-bold uppercase ${
+                            order.customerRating === "yes"
+                              ? "bg-ember text-ink"
+                              : "border border-cream/20 text-cream hover:border-ember"
+                          }`}
+                        >
+                          Sí
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => rateOrder(order.id, "no")}
+                          className={`rounded-full px-4 py-2 text-xs font-bold uppercase ${
+                            order.customerRating === "no"
+                              ? "bg-ember text-ink"
+                              : "border border-cream/20 text-cream hover:border-ember"
+                          }`}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>

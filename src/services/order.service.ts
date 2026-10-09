@@ -178,6 +178,55 @@ export class OrderFacade {
     return updated;
   }
 
+  markArrived(orderId: string): CustomerOrder | null {
+    const orders = this.loadOrders();
+    const orderIndex = orders.findIndex((order) => order.id === orderId);
+    const order = orders[orderIndex];
+    if (!order || order.fulfillmentType !== "delivery") return null;
+
+    const updated: CustomerOrder = {
+      ...order,
+      status: "on_the_way",
+      arrivedAt: new Date().toISOString(),
+    };
+    orders[orderIndex] = updated;
+    saveCustomerOrders(orders);
+    statusPublisher.notify(updated);
+    return updated;
+  }
+
+  rateOrder(
+    orderId: string,
+    rating: "yes" | "no",
+  ): CustomerOrder | null {
+    const orders = this.loadOrders();
+    const orderIndex = orders.findIndex((order) => order.id === orderId);
+    const order = orders[orderIndex];
+    if (!order) return null;
+
+    const updated: CustomerOrder = { ...order, customerRating: rating };
+    orders[orderIndex] = updated;
+    saveCustomerOrders(orders);
+    statusPublisher.notify(updated);
+    return updated;
+  }
+
+  rateCustomer(
+    orderId: string,
+    rating: "good" | "regular" | "bad",
+  ): CustomerOrder | null {
+    const orders = this.loadOrders();
+    const orderIndex = orders.findIndex((order) => order.id === orderId);
+    const order = orders[orderIndex];
+    if (!order) return null;
+
+    const updated: CustomerOrder = { ...order, deliveryRating: rating };
+    orders[orderIndex] = updated;
+    saveCustomerOrders(orders);
+    statusPublisher.notify(updated);
+    return updated;
+  }
+
   subscribeToStatusChanges(observer: OrderStatusObserver): () => void {
     return statusPublisher.subscribe(observer);
   }

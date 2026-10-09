@@ -12,8 +12,6 @@ const links = [
   { href: "/", label: "Inicio" },
   { href: "/menu", label: "Menú" },
   { href: "/carrito", label: "Carrito" },
-  { href: "/pedido", label: "Pedido" },
-  { href: "/ingresar", label: "Ingresar" },
 ];
 
 export function Navbar() {
@@ -43,7 +41,7 @@ export function Navbar() {
           />
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex">
+        <nav className="hidden items-center gap-7 md:flex">
           {links.map((link) => (
             <Link
               key={link.href}
@@ -67,15 +65,22 @@ export function Navbar() {
           {session ? (
             <Link
               href={roleHref}
-              className="text-sm font-medium uppercase tracking-[0.18em] text-gold transition hover:text-cream"
+              className="rounded-full border border-gold/50 px-4 py-2 text-sm font-bold uppercase tracking-wide text-gold transition hover:bg-gold hover:text-ink"
             >
-              {session.role}
+              Mi panel
             </Link>
-          ) : null}
+          ) : (
+            <Link
+              href="/ingresar"
+              className="rounded-full border border-gold/50 px-4 py-2 text-sm font-bold uppercase tracking-wide text-gold transition hover:bg-gold hover:text-ink"
+            >
+              Ingresar
+            </Link>
+          )}
 
           <Link
             href="/pedido"
-            className="rounded-full bg-ember px-4 py-2 text-sm font-semibold uppercase tracking-wide text-ink hover:bg-flame"
+            className="rounded-full bg-ember px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-ink shadow-[0_12px_35px_rgba(255,77,26,0.28)] transition hover:bg-flame"
           >
             Pedir ahora
           </Link>
@@ -116,15 +121,22 @@ export function Navbar() {
                   : link.label}
               </Link>
             ))}
+            <Link
+              href={session ? roleHref : "/ingresar"}
+              className="rounded-full border border-gold/50 px-4 py-3 text-center text-sm font-bold uppercase tracking-[0.18em] text-gold"
+              onClick={() => setOpen(false)}
+            >
+              {session ? "Mi panel" : "Ingresar"}
+            </Link>
+            <Link
+              href="/pedido"
+              className="rounded-full bg-ember px-4 py-3 text-center text-sm font-bold uppercase tracking-[0.18em] text-ink"
+              onClick={() => setOpen(false)}
+            >
+              Pedir ahora
+            </Link>
             {session ? (
               <>
-                <Link
-                  href={roleHref}
-                  className="text-sm uppercase tracking-[0.18em] text-gold"
-                  onClick={() => setOpen(false)}
-                >
-                  Mi apartado
-                </Link>
                 <button
                   type="button"
                   onClick={() => {
