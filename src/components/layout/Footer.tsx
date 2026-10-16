@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
+import { businessConfig } from "@/lib/business-config";
 
 export function Footer() {
   return (
@@ -33,9 +34,18 @@ export function Footer() {
             Pedidos
           </p>
           <p className="mt-4 text-sm leading-6 text-muted">
-            Confirma tu pedido para entrega o recojo. La atención por WhatsApp
-            estará disponible cuando se configure el número del negocio.
+            Confirma tu pedido para entrega o recojo. También puedes escribirnos
+            por WhatsApp al +51 947 228 198.
           </p>
+          <a
+            href={`https://wa.me/${businessConfig.whatsappNumber.replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-block text-sm font-semibold text-gold hover:text-cream"
+          >
+            Contactar por WhatsApp
+          </a>
+          <p className="mt-2 text-xs text-muted">Síguenos: @yalaza.pe</p>
         </div>
       </Container>
       <div className="border-t border-cream/10 py-4 text-center text-xs uppercase tracking-[0.18em] text-muted">

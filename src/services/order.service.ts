@@ -13,7 +13,11 @@ import {
   getCustomerSnapshot,
   saveCustomerCart,
   saveCustomerOrders,
+  commitOrderChange,
+  saveInventory,
 } from "@/services/customer-state.service";
+import { getAuthSnapshot } from "@/services/auth-state.service";
+import { authFacade } from "@/services/auth.service";
 import { OrderBuilder } from "@/patterns/creational/order.builder";
 import { EntregaFactory } from "@/patterns/creational/fulfillment.factory";
 import {
@@ -55,12 +59,57 @@ export class OrderFacade {
   }
 
   loadOrders(): CustomerOrder[] {
-    return getCustomerSnapshot().hydrated
-      ? getCustomerSnapshot().orders
-      : this.repository.loadOrders();
+    return this.repository.loadOrders();
   }
 
   createOrder(input: CreateOrderInput, cart: CartItem[]): CustomerOrder {
+    const session = getAuthSnapshot().session;
+    if (session?.role !== "customer" || input.customer.id !== session.userId) {
+      throw new Error("Inicia sesión como cliente para registrar tu pedido.");
+    }
+    const order = this.buildOrder(input, cart);
+    commitOrderChange(order);
+    return order;
+  }
+
+  saveAdminOrder(input: CreateOrderInput, cart: CartItem[], orderId?: string): CustomerOrder {
+    this.requireAdmin();
+    const customer = authFacade.getUsers().find(user => user.role === "customer" && user.id === input.customer.id);
+    if (!customer) throw new Error("Selecciona un cliente registrado.");
+    const order = this.buildOrder({
+      ...input,
+      customer: { id: customer.id, name: customer.name, lastName: customer.lastName, email: customer.email, phone: customer.phone },
+    }, cart);
+    const previous = orderId ? this.loadOrders().find(item => item.id === orderId) : undefined;
+    const saved: CustomerOrder = previous ? {
+      ...order, id: previous.id, securityCode: previous.securityCode, createdAt: previous.createdAt,
+    } : order;
+    commitOrderChange(saved, orderId);
+    return saved;
+  }
+
+  deleteAdminOrder(orderId: string): void {
+    this.requireAdmin();
+    commitOrderChange(null, orderId);
+  }
+
+  restoreAdminOrder(orderId: string): void {
+    this.requireAdmin();
+    const previous = this.loadOrders().find(order => order.id === orderId);
+    if (!previous) throw new Error("El pedido no existe.");
+    commitOrderChange({ ...previous, active: true, deactivatedAt: undefined }, orderId, true);
+  }
+
+  updateStock(productId: string, quantity: number): void {
+    this.requireAdmin();
+    saveInventory(productId, quantity);
+  }
+
+  private requireAdmin(): void {
+    if (getAuthSnapshot().session?.role !== "admin") throw new Error("Solo el administrador puede realizar esta operación.");
+  }
+
+  private buildOrder(input: CreateOrderInput, cart: CartItem[]): CustomerOrder {
     const name = input.customer.name.trim();
     const lastName = input.customer.lastName?.trim();
     const email = input.customer.email?.trim();
@@ -89,7 +138,11 @@ export class OrderFacade {
     }
 
     const catalog = getProducts();
+    const seen = new Set<string>();
     const items = cart.map(({ product, quantity }) => {
+      if (!Number.isSafeInteger(quantity) || quantity < 1) throw new Error("La cantidad debe ser un entero positivo.");
+      if (seen.has(product.id)) throw new Error("Un producto no puede repetirse en el pedido.");
+      seen.add(product.id);
       const current = catalog.find((item) => item.id === product.id);
       if (!current?.available) {
         throw new Error(`${product.name} ya no está disponible.`);
@@ -124,7 +177,6 @@ export class OrderFacade {
     order.deliveryFee = roundCurrency(order.deliveryFee);
     order.total = roundCurrency(order.subtotal + order.deliveryFee);
     paymentProcessor.prepare(order.total);
-    saveCustomerOrders([order, ...this.loadOrders()]);
     return order;
   }
 
@@ -132,7 +184,7 @@ export class OrderFacade {
     const orders = this.loadOrders();
     const orderIndex = orders.findIndex((order) => order.id === orderId);
     const order = orders[orderIndex];
-    if (!order) return null;
+    if (!order || order.active === false) return null;
 
     const status = getNextOrderStatus(order.status, order.fulfillmentType);
     if (!status) return null;
@@ -148,7 +200,7 @@ export class OrderFacade {
     const orders = this.loadOrders();
     const orderIndex = orders.findIndex((order) => order.id === orderId);
     const order = orders[orderIndex];
-    if (!order || order.status !== "pending") return null;
+    if (!order || order.active === false || order.status !== "pending") return null;
 
     const updated: CustomerOrder = {
       ...order,
@@ -165,7 +217,8 @@ export class OrderFacade {
     const orders = this.loadOrders();
     const orderIndex = orders.findIndex((order) => order.id === orderId);
     const order = orders[orderIndex];
-    if (!order || order.securityCode !== code.trim()) return null;
+    if (!order || order.active === false || order.securityCode !== code.trim()) return null;
+    if (order.status !== "on_the_way" && order.status !== "ready_for_pickup") return null;
 
     const updated: CustomerOrder = {
       ...order,
@@ -182,7 +235,7 @@ export class OrderFacade {
     const orders = this.loadOrders();
     const orderIndex = orders.findIndex((order) => order.id === orderId);
     const order = orders[orderIndex];
-    if (!order || order.fulfillmentType !== "delivery") return null;
+    if (!order || order.active === false || order.fulfillmentType !== "delivery" || order.status !== "on_the_way") return null;
 
     const updated: CustomerOrder = {
       ...order,
@@ -202,7 +255,7 @@ export class OrderFacade {
     const orders = this.loadOrders();
     const orderIndex = orders.findIndex((order) => order.id === orderId);
     const order = orders[orderIndex];
-    if (!order) return null;
+    if (!order || order.active === false) return null;
 
     const updated: CustomerOrder = { ...order, customerRating: rating };
     orders[orderIndex] = updated;
@@ -218,7 +271,7 @@ export class OrderFacade {
     const orders = this.loadOrders();
     const orderIndex = orders.findIndex((order) => order.id === orderId);
     const order = orders[orderIndex];
-    if (!order) return null;
+    if (!order || order.active === false) return null;
 
     const updated: CustomerOrder = { ...order, deliveryRating: rating };
     orders[orderIndex] = updated;

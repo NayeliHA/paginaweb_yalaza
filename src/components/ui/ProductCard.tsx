@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { Product } from "@/models";
 import { formatPrice } from "@/lib/format";
 import { AddToCartButton } from "@/components/orders/AddToCartButton";
@@ -10,9 +11,18 @@ const spiceLabels: Record<1 | 2 | 3, string> = {
 
 export function ProductCard({ product }: { product: Product }) {
   return (
-    <article className="flex h-full flex-col rounded-lg border border-cream/10 bg-card p-6 transition hover:-translate-y-1 hover:border-ember/50 hover:shadow-[0_22px_55px_rgba(255,77,26,0.12)]">
-      <div className="mb-5 flex h-36 items-end rounded-lg bg-[radial-gradient(circle_at_top,_#ff8a3d_0%,_#1f1410_62%)] p-4">
-        <span className="rounded-full bg-ink/70 px-3 py-1 text-xs uppercase tracking-widest text-gold">
+    <article className="group flex h-full flex-col rounded-lg border border-cream/10 bg-card p-6 transition hover:-translate-y-1 hover:border-ember/50 hover:shadow-[0_22px_55px_rgba(255,77,26,0.12)]">
+      <div className="relative mb-5 flex aspect-[3/2] items-end overflow-hidden rounded-lg bg-[#171411] p-4">
+        {product.image ? (
+          <Image
+            src={product.image}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            className={`${product.categoryId === "cat-bebidas" ? "object-contain" : "object-cover"} transition duration-500 group-hover:scale-105`}
+          />
+        ) : null}
+        <span className="relative z-10 rounded-full bg-ink/70 px-3 py-1 text-xs uppercase tracking-widest text-gold">
           {!product.available ? "Agotado" : product.featured ? "Destacado" : "Disponible"}
         </span>
       </div>

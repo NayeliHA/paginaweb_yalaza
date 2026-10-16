@@ -76,6 +76,7 @@ export class OrderBuilder {
     }
 
     const common = {
+      active: true,
       id: this.id,
       securityCode: this.codigoSeguridad,
       customer: this.cliente,

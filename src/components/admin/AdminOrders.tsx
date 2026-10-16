@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { RoleGate } from "@/components/auth/RoleGate";
 import { useOrder } from "@/components/orders/OrderProvider";
 import { formatPrice } from "@/lib/format";
 import type { CustomerOrder, FulfillmentType, PaymentMethod } from "@/models";
-import { orderStatusLabels } from "@/patterns/behavioral/order-state";
+import { getOrderActionLabel } from "@/patterns/behavioral/order-state";
+import { AdminOrderManager } from "@/components/admin/AdminOrderManager";
+import { AdminStock } from "@/components/admin/AdminStock";
+import { PanelShell, PanelMetric, PanelEmpty, OrderStatusBadge } from "@/components/panels/PanelShell";
 
 type AdminFilter = "all" | FulfillmentType;
-type AdminSection = "dashboard" | "all" | "pickup" | "delivery" | "verification";
+type AdminSection = "dashboard" | "all" | "pickup" | "delivery" | "verification" | "manage" | "stock";
 type PaymentFilter = "all" | PaymentMethod;
 
 const filters: { value: AdminFilter; label: string }[] = [
@@ -25,12 +27,11 @@ export function AdminOrders({
 }: {
   initialSection?: AdminSection;
 }) {
-  const router = useRouter();
-  const { session, logout } = useAuth();
-  const { orders, hydrated, acceptOrder, advanceOrderStatus, verifyOrder } =
+  const { session } = useAuth();
+  const { orders: allOrders, hydrated, acceptOrder, advanceOrderStatus, verifyOrder } =
     useOrder();
-  const [navCollapsed, setNavCollapsed] = useState(false);
-  const [section, setSection] = useState<AdminSection>(initialSection);
+  const orders = allOrders.filter(order => order.active !== false);
+  const section = initialSection;
   const [filter, setFilter] = useState<AdminFilter>(
     initialSection === "pickup"
       ? "pickup"
@@ -81,8 +82,9 @@ export function AdminOrders({
         },
       );
     }
-    if (filter === "all") return orders;
-    return orders.filter((order) => order.fulfillmentType === filter);
+    const query = search.trim().toLocaleLowerCase("es");
+    return orders.filter(order => (filter === "all" || order.fulfillmentType === filter) &&
+      `${order.id} ${order.customer.name} ${order.customer.lastName ?? ""} ${order.customer.phone}`.toLocaleLowerCase("es").includes(query));
   }, [
     filter,
     orders,
@@ -121,303 +123,80 @@ export function AdminOrders({
     );
   }
 
-  function handleLogout() {
-    logout();
-    router.push("/ingresar");
-  }
 
   const sectionTitle: Record<AdminSection, string> = {
-    dashboard: "Dashboard",
-    all: "Pedidos totales",
+    dashboard: "Resumen del negocio",
+    all: "Pedidos registrados",
     pickup: "Recojo en tienda",
     delivery: "Pedidos delivery",
     verification: "Verificación",
+    manage: "Gestionar pedidos",
+    stock: "Stock",
   };
 
   return (
     <RoleGate role="admin">
-      <section className="min-h-screen bg-[#f9f6f1] text-ink">
-        <div className="flex min-h-screen w-full bg-cream">
-          <aside
-            className={`relative hidden shrink-0 flex-col bg-ember p-5 text-ink shadow-[12px_0_38px_rgba(20,12,9,0.16)] transition-all md:flex ${
-              navCollapsed ? "w-24" : "w-64"
-            }`}
-          >
-            <div className="rounded-lg bg-cream p-4">
-              <div className={`flex items-center gap-3 ${navCollapsed ? "justify-center" : ""}`}>
-                <div className="grid h-12 w-12 place-items-center rounded-full bg-ember font-black text-ink">
-                  {session?.name?.charAt(0) ?? "A"}
-                </div>
-                <div className={`min-w-0 ${navCollapsed ? "hidden" : ""}`}>
-                  <p className="truncate text-sm font-black">
-                    {session?.name ?? "Administrador"}
-                  </p>
-                  <p className="text-xs font-bold uppercase text-ink/55">
-                    Panel administrador
-                  </p>
-                </div>
-              </div>
+      <PanelShell role="admin" title={sectionTitle[section]} description={
+        section === "dashboard" ? "Una vista clara de tus pedidos, ingresos y operación." :
+        section === "manage" ? "Registra pedidos para tus clientes y administra los pendientes." :
+        section === "stock" ? "Consulta las existencias y mantén tu inventario al día." :
+        section === "verification" ? "Valida el código del cliente para completar la atención." :
+        "Consulta los pedidos y acompaña cada etapa de su atención."
+      } action={section !== "manage" ? <Link href="/admin/gestionar" className="panel-primary-link"><span aria-hidden="true">+</span> Registrar pedido</Link> : undefined}>
+        {section === "manage" ? <AdminOrderManager /> : section === "all" ? <AdminOrderManager showForm={false} /> : section === "stock" ? <AdminStock /> : section === "dashboard" ? (
+          <AdminDashboard activeOrders={activeOrders.length} averageTicket={averageTicket}
+            cardOrders={cardOrders.length} cashOrders={cashOrders.length} deliveryOrders={deliveryOrders.length}
+            finishedOrders={finishedOrders.length} orders={orders} pendingOrders={pendingOrders.length}
+            pickupOrders={pickupOrders.length} revenue={revenue} yapeOrders={yapeOrders.length} />
+        ) : (
+          <>
+            <div className="panel-metrics mb-6">
+              <PanelMetric label="Pedidos registrados" value={orders.length} hint="Todas las modalidades" icon="orders" />
+              <PanelMetric label="En atención" value={activeOrders.length} hint="Pendientes y en proceso" icon="truck" />
+              <PanelMetric label="Pendientes" value={pendingOrders.length} hint="Por aceptar" icon="pickup" />
+              <PanelMetric label="Completados" value={finishedOrders.length} hint="Entregados y recogidos" icon="check" />
             </div>
-            <nav className="mt-6 space-y-2">
-              <PanelNavItem active={section === "dashboard"} collapsed={navCollapsed} href="/admin" icon="D" label="Dashboard" />
-              <PanelNavItem active={section === "all"} collapsed={navCollapsed} href="/admin/pedidos" icon="T" label="Pedidos totales" />
-              <PanelNavItem active={section === "pickup"} collapsed={navCollapsed} href="/admin/recojo" icon="R" label="Recojo en tienda" />
-              <PanelNavItem active={section === "delivery"} collapsed={navCollapsed} href="/admin/delivery" icon="E" label="Pedidos delivery" />
-              <PanelNavItem active={section === "verification"} collapsed={navCollapsed} href="/admin/verificacion" icon="V" label="Verificación" />
-            </nav>
-            <button
-              type="button"
-              onClick={() => setNavCollapsed((value) => !value)}
-              aria-label={navCollapsed ? "Expandir menú" : "Contraer menú"}
-              className="absolute -right-5 bottom-28 z-10 grid h-10 w-10 place-items-center rounded-full border-4 border-[#f9f6f1] bg-cream text-2xl font-black text-ember shadow-[0_10px_24px_rgba(20,12,9,0.24)] transition hover:scale-105"
-            >
-              {navCollapsed ? "›" : "‹"}
-            </button>
-            <div className="mt-auto space-y-2">
-              <Link
-                href="/"
-                className={`flex w-full rounded-lg bg-cream/90 px-4 py-3 text-sm font-black uppercase text-ink transition hover:bg-white ${navCollapsed ? "justify-center" : ""}`}
-              >
-                {navCollapsed ? "W" : "Volver a la web"}
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className={`flex w-full rounded-lg bg-ink px-4 py-3 text-sm font-black uppercase text-cream transition hover:bg-card ${navCollapsed ? "justify-center" : ""}`}
-              >
-                {navCollapsed ? "S" : "Salir"}
-              </button>
-            </div>
-          </aside>
-
-          <div className="grid min-h-screen flex-1 lg:grid-cols-[420px_1fr]">
-            <div className="flex min-h-screen flex-col border-r border-ink/10 bg-[#fffaf5]">
-              <header className="border-b border-ink/10 p-5">
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-ember">
-                  Panel administrador
-                </p>
-                <h1 className="mt-2 font-display text-5xl leading-none text-ink">
-                  {sectionTitle[section]}
-                </h1>
-                <div className="mt-5 grid grid-cols-2 gap-2">
-                  <StatPill label="Total" value={orders.length} />
-                  <StatPill label="Activos" value={activeOrders.length} />
-                  <StatPill label="Recojo" value={pickupOrders.length} />
-                  <StatPill label="Delivery" value={deliveryOrders.length} />
-                </div>
-                {section === "dashboard" ? (
-                  <p className="mt-5 rounded-lg bg-[#f4eee7] px-4 py-3 text-sm font-bold leading-6 text-ink/65">
-                    Vista general del negocio: pedidos, ingresos, modalidades,
-                    métodos de pago y estado operativo.
-                  </p>
-                ) : section === "verification" ? (
-                  <VerificationFilters
-                    search={search}
-                    fulfillment={verificationFulfillment}
-                    payment={verificationPayment}
-                    onSearchChange={setSearch}
-                    onFulfillmentChange={(value) => {
-                      setVerificationFulfillment(value);
-                      setSelectedId(null);
-                    }}
-                    onPaymentChange={(value) => {
-                      setVerificationPayment(value);
-                      setSelectedId(null);
-                    }}
-                  />
-                ) : (
-                  <div className="mt-5 flex rounded-full bg-[#f4eee7] p-1">
-                    {filters.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          setSection(option.value === "all" ? "all" : option.value);
-                          setFilter(option.value);
-                          setSelectedId(null);
-                        }}
-                        className={`flex-1 rounded-full px-3 py-2 text-xs font-black uppercase transition ${
-                          filter === option.value
-                            ? "bg-ember text-ink"
-                            : "text-ink/55 hover:text-ink"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </header>
-
-              {section === "dashboard" ? (
-                <DashboardSummary
-                  active={activeOrders.length}
-                  averageTicket={averageTicket}
-                  delivery={deliveryOrders.length}
-                  finished={finishedOrders.length}
-                  pickup={pickupOrders.length}
-                  revenue={revenue}
-                  total={orders.length}
-                />
+            <div className="panel-toolbar">
+              {section === "verification" ? (
+                <VerificationFilters search={search} fulfillment={verificationFulfillment} payment={verificationPayment}
+                  onSearchChange={setSearch} onFulfillmentChange={value => { setVerificationFulfillment(value); setSelectedId(null); }}
+                  onPaymentChange={value => { setVerificationPayment(value); setSelectedId(null); }} />
               ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                  {!hydrated ? (
-                    <p className="p-4 text-sm text-ink/60">Cargando pedidos...</p>
-                  ) : filteredOrders.length === 0 ? (
-                    <p className="p-4 text-sm text-ink/60">
-                      No hay pedidos para verificar con esos filtros.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {filteredOrders.map((order) => (
-                        <OrderListButton
-                          key={order.id}
-                          order={order}
-                          selected={selectedOrder?.id === order.id}
-                          showPayment={section === "verification"}
-                          onClick={() => setSelectedId(order.id)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className="border-t border-ink/10 bg-[#f4eee7] p-4">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">
-                  Estado del día
-                </p>
-                <div className="mt-3 space-y-2">
-                  <MiniRow label="Pendientes" value={pendingOrders.length} />
-                  <MiniRow label="En atención" value={activeOrders.length} />
-                  <MiniRow label="Entregados" value={finishedOrders.length} />
-                </div>
-              </div>
-            </div>
-
-            <div className="min-h-screen overflow-y-auto bg-[#f9f6f1] p-5 sm:p-7">
-              {section === "dashboard" ? (
-                <AdminDashboard
-                  activeOrders={activeOrders.length}
-                  averageTicket={averageTicket}
-                  cardOrders={cardOrders.length}
-                  cashOrders={cashOrders.length}
-                  deliveryOrders={deliveryOrders.length}
-                  finishedOrders={finishedOrders.length}
-                  orders={orders}
-                  pendingOrders={pendingOrders.length}
-                  pickupOrders={pickupOrders.length}
-                  revenue={revenue}
-                  yapeOrders={yapeOrders.length}
-                />
-              ) : selectedOrder ? (
-                <>
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.2em] text-ember">
-                        Detalle y verificación
-                      </p>
-                      <h2 className="font-display text-4xl text-ink">
-                        Mesa de control
-                      </h2>
-                    </div>
-                    {message ? (
-                      <span className="rounded-full bg-gold px-4 py-2 text-xs font-black uppercase text-ink">
-                        {message}
-                      </span>
-                    ) : null}
-                  </div>
-                <OrderDetail
-                  order={selectedOrder}
-                  code={codes[selectedOrder.id] ?? ""}
-                  onCodeChange={(value) =>
-                    setCodes((current) => ({
-                      ...current,
-                      [selectedOrder.id]: value.replace(/\D/g, ""),
-                    }))
-                  }
-                  onAccept={() => acceptOrder(selectedOrder.id, "Administrador")}
-                  onAdvance={() => advanceOrderStatus(selectedOrder.id)}
-                  onVerify={() => handleVerify(selectedOrder.id)}
-                  allowVerification={
-                    section === "verification" ||
-                    selectedOrder.fulfillmentType === "pickup"
-                  }
-                />
-                </>
-              ) : (
-                <div className="grid min-h-[440px] place-items-center rounded-lg border border-dashed border-ink/20 bg-white text-center">
-                  <div>
-                    <p className="font-display text-4xl text-ink">
-                      Sin pedidos todavía
-                    </p>
-                    <p className="mt-2 text-sm text-ink/60">
-                      Cuando un cliente compre, aparecerá aquí.
-                    </p>
+                <div className="flex flex-wrap items-end gap-4">
+                  <label className="min-w-0 flex-1 text-sm font-medium">Buscar pedido
+                    <input type="search" className="panel-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Cliente, celular o código..." />
+                  </label>
+                  <div className="panel-tabs" aria-label="Modalidad del pedido">
+                    {filters.map(option => <button key={option.value} type="button" aria-pressed={filter === option.value}
+                      className={filter === option.value ? "is-active" : ""} onClick={() => { setFilter(option.value); setSelectedId(null); }}>{option.label}</button>)}
                   </div>
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </section>
+            {message ? <p role="status" className="panel-notice">{message}</p> : null}
+            {!hydrated ? <p className="p-6 text-sm text-ink/60">Cargando pedidos...</p> : (
+              <div className="panel-order-layout">
+                <section className="panel-order-list" aria-label="Lista de pedidos">
+                  <div className="panel-list-heading"><h2>Pedidos</h2><span>{filteredOrders.length}</span></div>
+                  {filteredOrders.length ? <div className="space-y-3 p-4">{filteredOrders.map(order =>
+                    <OrderListButton key={order.id} order={order} selected={selectedOrder?.id === order.id}
+                      showPayment={section === "verification"} onClick={() => setSelectedId(order.id)} />)}</div> :
+                    <PanelEmpty title="Sin pedidos" description="Los pedidos que coincidan con tus filtros aparecerán aquí." />}
+                </section>
+                <div className="min-w-0">
+                  {selectedOrder ? <OrderDetail order={selectedOrder} code={codes[selectedOrder.id] ?? ""}
+                    onCodeChange={value => setCodes(current => ({ ...current, [selectedOrder.id]: value.replace(/\D/g, "") }))}
+                    onAccept={() => acceptOrder(selectedOrder.id, session?.name ?? "Administrador")}
+                    onAdvance={() => advanceOrderStatus(selectedOrder.id)} onVerify={() => handleVerify(selectedOrder.id)}
+                    allowVerification={section === "verification" || selectedOrder.fulfillmentType === "pickup"} /> :
+                    <PanelEmpty title="Todo listo para empezar" description="Registra un pedido o selecciona uno de la lista para consultar su detalle." />}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </PanelShell>
     </RoleGate>
-  );
-}
-
-function StatPill({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg bg-[#f4eee7] p-3">
-      <p className="text-[10px] font-black uppercase text-ink/50">{label}</p>
-      <p className="font-display text-3xl text-ember">{value}</p>
-    </div>
-  );
-}
-
-function DashboardSummary({
-  active,
-  averageTicket,
-  delivery,
-  finished,
-  pickup,
-  revenue,
-  total,
-}: {
-  active: number;
-  averageTicket: number;
-  delivery: number;
-  finished: number;
-  pickup: number;
-  revenue: number;
-  total: number;
-}) {
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4">
-      <div className="space-y-3">
-        <SummaryRow label="Pedidos registrados" value={total.toString()} />
-        <SummaryRow label="Ingresos acumulados" value={formatPrice(revenue)} />
-        <SummaryRow label="Ticket promedio" value={formatPrice(averageTicket)} />
-        <SummaryRow label="En atención" value={active.toString()} />
-      </div>
-      <div className="mt-5 rounded-lg bg-[#f4eee7] p-4">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">
-          Distribución rápida
-        </p>
-        <DashboardBar label="Delivery" value={delivery} total={total} />
-        <DashboardBar label="Recojo" value={pickup} total={total} />
-        <DashboardBar label="Completados" value={finished} total={total} />
-      </div>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-ink/10 bg-white p-4">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-ink/45">
-        {label}
-      </p>
-      <p className="mt-2 font-display text-4xl text-ember">{value}</p>
-    </div>
   );
 }
 
@@ -436,20 +215,20 @@ function OrderListButton({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-lg border p-4 text-left transition hover:-translate-y-0.5 ${
-        selected ? "border-ember bg-ember/10" : "border-ink/10 bg-[#faf7f2]"
+      className={`w-full rounded-xl border p-4 text-left transition hover:-translate-y-0.5 ${
+        selected ? "border-ember bg-ember/10" : "border-ink/10 bg-[#f8fafc]"
       }`}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="font-display text-2xl text-ink">
+        <span className="font-sans font-semibold text-lg text-ink">
           {order.id.slice(-9)}
         </span>
         <div className="flex flex-wrap justify-end gap-1">
-          <span className="rounded-full bg-ink px-2 py-1 text-[10px] font-black uppercase text-cream">
+          <span className="rounded-full bg-ink px-2 py-1 text-xs font-semibold text-cream">
             {order.fulfillmentType === "delivery" ? "Delivery" : "Recojo"}
           </span>
           {showPayment ? (
-            <span className="rounded-full bg-gold px-2 py-1 text-[10px] font-black uppercase text-ink">
+            <span className="rounded-full bg-gold px-2 py-1 text-xs font-semibold text-ink">
               {order.paymentLabel}
             </span>
           ) : null}
@@ -458,9 +237,7 @@ function OrderListButton({
       <p className="mt-2 text-sm font-bold text-ink">
         {[order.customer.name, order.customer.lastName].filter(Boolean).join(" ")}
       </p>
-      <p className="mt-1 text-xs text-ink/55">
-        {orderStatusLabels[order.status]} · {formatPrice(order.total)}
-      </p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><OrderStatusBadge status={order.status} /><span className="text-xs font-medium text-ink/60">{formatPrice(order.total)}</span></div>
     </button>
   );
 }
@@ -495,28 +272,17 @@ function AdminDashboard({
 
   return (
     <>
-      <div className="mb-5">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-ember">
-          Vista general
-        </p>
-        <h2 className="font-display text-5xl text-ink">
-          Resumen del negocio
-        </h2>
-      </div>
-
-      <div className="grid gap-3 xl:grid-cols-4">
-        <MetricCard label="Ingresos" value={formatPrice(revenue)} />
-        <MetricCard label="Ticket prom." value={formatPrice(averageTicket)} />
-        <MetricCard label="Pedidos activos" value={activeOrders.toString()} />
-        <MetricCard label="Completados" value={finishedOrders.toString()} />
+      <div className="panel-metrics">
+        <PanelMetric label="Importe de pedidos" value={formatPrice(revenue)} hint="Total registrado" icon="orders" />
+        <PanelMetric label="Ticket promedio" value={formatPrice(averageTicket)} hint="Importe por pedido" icon="dashboard" />
+        <PanelMetric label="Pedidos activos" value={activeOrders} hint="En atención" icon="truck" />
+        <PanelMetric label="Completados" value={finishedOrders} hint="Entregados y recogidos" icon="check" />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <ChartCard title="Modalidad de pedidos">
           <DashboardBar label="Delivery" value={deliveryOrders} total={total} />
           <DashboardBar label="Recojo" value={pickupOrders} total={total} />
-          <DashboardBar label="Pendientes" value={pendingOrders} total={total} />
-          <DashboardBar label="Finalizados" value={finishedOrders} total={total} />
         </ChartCard>
 
         <ChartCard title="Métodos de pago">
@@ -527,33 +293,25 @@ function AdminDashboard({
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-        <ChartCard title="Indicador de operación">
-          <div className="grid place-items-center py-6">
-            <div className="grid h-44 w-44 place-items-center rounded-full border-[18px] border-ember bg-white text-center shadow-[0_18px_50px_rgba(20,12,9,0.08)]">
-              <div>
-                <p className="font-display text-5xl text-ink">
-                  {total === 0 ? 0 : Math.round((finishedOrders / total) * 100)}%
-                </p>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-ink/45">
-                  completado
-                </p>
-              </div>
-            </div>
-          </div>
+        <ChartCard title="Estado de la operación">
+          <DashboardBar label="Por aceptar" value={pendingOrders} total={total} />
+          <DashboardBar label="En proceso" value={activeOrders - pendingOrders} total={total} />
+          <DashboardBar label="Completados" value={finishedOrders} total={total} />
+          <p className="mt-4 text-xs text-ink/55">{total ? `${Math.round(finishedOrders / total * 100)}% de los pedidos completados.` : "Las estadísticas se actualizarán al registrar tu primer pedido."}</p>
         </ChartCard>
 
         <ChartCard title="Últimos pedidos">
           {recentOrders.length === 0 ? (
-            <p className="text-sm text-ink/55">Aún no hay pedidos.</p>
+            <PanelEmpty title="Tu próximo pedido va aquí" description="Registra el primero para comenzar a ver la actividad del negocio." />
           ) : (
             <div className="space-y-3">
               {recentOrders.map((order) => (
                 <div
                   key={order.id}
-                  className="flex items-center justify-between rounded-lg bg-[#f9f6f1] px-4 py-3"
+                  className="flex items-center justify-between rounded-xl bg-[#f8fafc] px-4 py-3"
                 >
                   <div>
-                    <p className="font-display text-2xl text-ink">
+                    <p className="font-sans font-semibold text-lg text-ink">
                       {order.id.slice(-9)}
                     </p>
                     <p className="text-xs font-bold text-ink/55">
@@ -561,7 +319,7 @@ function AdminDashboard({
                       {order.paymentLabel}
                     </p>
                   </div>
-                  <p className="font-black text-ember">{formatPrice(order.total)}</p>
+                  <p className="font-semibold text-ember">{formatPrice(order.total)}</p>
                 </div>
               ))}
             </div>
@@ -580,8 +338,8 @@ function ChartCard({
   title: string;
 }) {
   return (
-    <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-[0_12px_34px_rgba(20,12,9,0.06)]">
-      <h3 className="font-display text-3xl text-ink">{title}</h3>
+    <section className="rounded-xl border border-ink/10 bg-white p-5 shadow-sm">
+      <h3 className="font-sans font-semibold text-lg text-ink">{title}</h3>
       <div className="mt-4 space-y-4">{children}</div>
     </section>
   );
@@ -596,15 +354,15 @@ function DashboardBar({
   total: number;
   value: number;
 }) {
-  const width = total > 0 ? Math.max(6, Math.round((value / total) * 100)) : 0;
+  const width = total > 0 ? Math.round((value / total) * 100) : 0;
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-sm font-black text-ink">
+      <div className="mb-2 flex items-center justify-between text-sm font-semibold text-ink">
         <span>{label}</span>
         <span>{value}</span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full bg-[#f4eee7]">
+      <div className="h-3 overflow-hidden rounded-full bg-[#f2f4f7]">
         <div
           className="h-full rounded-full bg-ember transition-all"
           style={{ width: `${width}%` }}
@@ -630,9 +388,9 @@ function VerificationFilters({
   onPaymentChange: (value: PaymentFilter) => void;
 }) {
   return (
-    <div className="mt-5 space-y-3">
+    <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
       <label className="block">
-        <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-ink/45">
+        <span className="mb-2 block text-xs font-semibold tracking-normal text-ink/45">
           Buscar pedido
         </span>
         <input
@@ -640,12 +398,12 @@ function VerificationFilters({
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Código, cliente, celular..."
-          className="w-full rounded-lg border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink outline-none transition placeholder:text-ink/35 focus:border-ember"
+          className="w-full rounded-xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink outline-none transition placeholder:text-ink/35 focus:border-ember"
         />
       </label>
 
       <div>
-        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-ink/45">
+        <p className="mb-2 text-xs font-semibold tracking-normal text-ink/45">
           Modalidad
         </p>
         <div className="grid grid-cols-3 gap-2">
@@ -658,10 +416,10 @@ function VerificationFilters({
               key={value}
               type="button"
               onClick={() => onFulfillmentChange(value)}
-              className={`rounded-full px-3 py-2 text-[11px] font-black uppercase transition ${
+              className={`rounded-full px-3 py-2 text-[11px] font-semibold transition ${
                 fulfillment === value
                   ? "bg-ember text-ink"
-                  : "bg-[#f4eee7] text-ink/60 hover:text-ink"
+                  : "bg-[#f2f4f7] text-ink/60 hover:text-ink"
               }`}
             >
               {label}
@@ -671,7 +429,7 @@ function VerificationFilters({
       </div>
 
       <div>
-        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-ink/45">
+        <p className="mb-2 text-xs font-semibold tracking-normal text-ink/45">
           Método de pago
         </p>
         <div className="grid grid-cols-4 gap-2">
@@ -685,70 +443,16 @@ function VerificationFilters({
               key={value}
               type="button"
               onClick={() => onPaymentChange(value)}
-              className={`rounded-full px-2 py-2 text-[10px] font-black uppercase transition ${
+              className={`rounded-full px-2 py-2 text-xs font-semibold transition ${
                 payment === value
                   ? "bg-ink text-cream"
-                  : "bg-[#f4eee7] text-ink/60 hover:text-ink"
+                  : "bg-[#f2f4f7] text-ink/60 hover:text-ink"
               }`}
             >
               {label}
             </button>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function PanelNavItem({
-  label,
-  icon,
-  href,
-  active = false,
-  collapsed,
-}: {
-  label: string;
-  icon: string;
-  href: string;
-  active?: boolean;
-  collapsed: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      title={collapsed ? label : undefined}
-      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm font-black uppercase transition ${
-        active
-          ? "bg-ink text-cream shadow-[0_14px_30px_rgba(20,12,9,0.24)]"
-          : "bg-cream/20 text-ink hover:bg-cream/70"
-      } ${collapsed ? "justify-center px-0" : ""}`}
-    >
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cream/90 text-xs text-ink">
-        {icon}
-      </span>
-      <span className={collapsed ? "sr-only" : ""}>{label}</span>
-    </Link>
-  );
-}
-
-function MiniRow({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center justify-between rounded-lg bg-white px-4 py-3">
-      <span className="text-sm font-bold text-ink/65">{label}</span>
-      <span className="font-display text-2xl text-ember">{value}</span>
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-ink/10 bg-white p-4 shadow-[0_12px_34px_rgba(20,12,9,0.06)]">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-ink/45">
-        {label}
-      </p>
-      <p className="mt-2 font-display text-3xl leading-none text-ink">{value}</p>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#f4eee7]">
-        <div className="h-full w-2/3 rounded-full bg-ember" />
       </div>
     </div>
   );
@@ -771,16 +475,17 @@ function OrderDetail({
   onVerify: () => void;
   allowVerification: boolean;
 }) {
-  const finished = order.status === "delivered" || order.status === "picked_up";
+  const nextAction = getOrderActionLabel(order.status, order.fulfillmentType);
+  const canVerify = order.status === "on_the_way" || order.status === "ready_for_pickup";
 
   return (
-    <article className="rounded-lg bg-white p-5 shadow-[0_18px_60px_rgba(20,12,9,0.1)] sm:p-7">
+    <article className="rounded-xl bg-white p-5 shadow-sm sm:p-7">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-ink/45">
+          <p className="text-xs font-semibold tracking-normal text-ink/45">
             Pedido seleccionado
           </p>
-          <h3 className="mt-1 font-display text-5xl text-ink">{order.id}</h3>
+          <h3 className="mt-1 font-sans font-semibold text-lg text-ink">{order.id}</h3>
           <p className="mt-2 text-sm font-bold text-ink/70">
             {[order.customer.name, order.customer.lastName]
               .filter(Boolean)
@@ -788,9 +493,7 @@ function OrderDetail({
             · {order.customer.phone}
           </p>
         </div>
-        <span className="rounded-full bg-ember px-4 py-2 text-xs font-black uppercase text-ink">
-          {orderStatusLabels[order.status]}
-        </span>
+        <OrderStatusBadge status={order.status} />
       </header>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -803,8 +506,8 @@ function OrderDetail({
       </div>
 
       {order.fulfillmentType === "delivery" ? (
-        <div className="mt-5 rounded-lg border border-ink/10 bg-[#f9f6f1] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">
+        <div className="mt-5 rounded-xl border border-ink/10 bg-[#f8fafc] p-4">
+          <p className="text-xs font-semibold tracking-normal text-ink/45">
             Dirección
           </p>
           <p className="mt-2 font-bold text-ink">
@@ -817,7 +520,7 @@ function OrderDetail({
       ) : null}
 
       <div className="mt-6 border-y border-ink/10 py-5">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-ink/45">
+        <p className="text-xs font-semibold tracking-normal text-ink/45">
           Productos
         </p>
         <ul className="mt-3 space-y-2 text-sm font-semibold text-ink">
@@ -832,26 +535,26 @@ function OrderDetail({
         </ul>
       </div>
 
-      <div className="mt-6 grid gap-3 lg:grid-cols-[1fr_1fr_1.2fr]">
+      <div className="mt-6 flex flex-wrap gap-3">
         {order.status === "pending" ? (
           <button
             type="button"
             onClick={onAccept}
-            className="rounded-full bg-ember px-5 py-3 text-sm font-black uppercase text-ink hover:bg-flame"
+            className="rounded-full bg-ember px-5 py-3 text-sm font-semibold text-ink hover:bg-flame"
           >
             Aceptar pedido
           </button>
         ) : null}
-        {!finished ? (
+        {nextAction ? (
           <button
             type="button"
             onClick={onAdvance}
-            className="rounded-full border border-ink/20 px-5 py-3 text-sm font-black uppercase text-ink hover:border-ember"
+            className="rounded-full border border-ink/20 px-5 py-3 text-sm font-semibold text-ink hover:border-ember"
           >
-            Avanzar estado
+            {nextAction}
           </button>
         ) : null}
-        {allowVerification ? (
+        {allowVerification && canVerify ? (
           <div className="flex gap-2">
             <input
               inputMode="numeric"
@@ -859,17 +562,18 @@ function OrderDetail({
               value={code}
               onChange={(event) => onCodeChange(event.target.value)}
               placeholder="Código"
-              className="min-w-0 flex-1 rounded-full border border-ink/15 bg-[#f9f6f1] px-4 py-3 text-center font-black text-ink outline-none focus:border-ember"
+              className="min-w-0 flex-1 rounded-full border border-ink/15 bg-[#f8fafc] px-4 py-3 text-center font-semibold text-ink outline-none focus:border-ember"
             />
             <button
               type="button"
               onClick={onVerify}
-              className="rounded-full bg-gold px-5 py-3 text-sm font-black uppercase text-ink hover:bg-ember"
+              className="rounded-full bg-gold px-5 py-3 text-sm font-semibold text-ink hover:bg-ember"
             >
               Verificar
             </button>
           </div>
         ) : null}
+        {canVerify && !allowVerification ? <Link href="/admin/verificacion" className="panel-primary-link">Verificar entrega</Link> : null}
       </div>
     </article>
   );
@@ -877,11 +581,11 @@ function OrderDetail({
 
 function InfoBox({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-ink/10 bg-[#f9f6f1] p-4">
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-ink/45">
+    <div className="rounded-xl border border-ink/10 bg-[#f8fafc] p-4">
+      <p className="text-xs font-semibold tracking-normal text-ink/45">
         {label}
       </p>
-      <p className="mt-1 font-display text-3xl text-ink">{children}</p>
+      <p className="mt-1 font-sans font-semibold text-lg text-ink">{children}</p>
     </div>
   );
 }

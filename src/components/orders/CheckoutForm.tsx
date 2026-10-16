@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import type {
   CustomerOrder,
@@ -14,7 +14,10 @@ import { Container } from "@/components/ui/Container";
 import { businessConfig } from "@/lib/business-config";
 import { formatPrice } from "@/lib/format";
 import { buildWhatsAppOrderUrl } from "@/lib/whatsapp";
-import { paymentMethodLabels } from "@/patterns/structural/payment-adapter";
+import {
+  createPaymentProcessor,
+  paymentMethodLabels,
+} from "@/patterns/structural/payment-adapter";
 
 const pickupMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(businessConfig.pickupAddress)}`;
 
@@ -32,6 +35,10 @@ export function CheckoutForm() {
   const [locationMessage, setLocationMessage] = useState("");
   const [error, setError] = useState("");
   const [confirmedOrder, setConfirmedOrder] = useState<CustomerOrder | null>(null);
+  const paymentPreview = useMemo(
+    () => createPaymentProcessor(paymentMethod).prepare(subtotal),
+    [paymentMethod, subtotal],
+  );
 
   function requestLocation() {
     if (!navigator.geolocation) {
@@ -255,6 +262,31 @@ export function CheckoutForm() {
                     {paymentMethodLabels[method]}
                   </label>
                 ))}
+              </div>
+              <div className="border border-cream/10 bg-ink/35 p-4">
+                <p className="text-sm font-semibold text-cream">{paymentPreview.message}</p>
+                {paymentPreview.instructions?.length ? (
+                  <ul className="mt-3 space-y-1 text-sm text-muted">
+                    {paymentPreview.instructions.map((instruction) => (
+                      <li key={instruction}>{instruction}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {paymentPreview.qrImageUrl ? (
+                  <div className="mt-4 flex flex-wrap items-center gap-4">
+                    <div
+                      role="img"
+                      aria-label="QR para pagar con Yape"
+                      className="h-40 w-40 border border-cream/15 bg-cream bg-[length:calc(100%-1rem)_calc(100%-1rem)] bg-center bg-no-repeat p-2"
+                      style={{ backgroundImage: `url("${paymentPreview.qrImageUrl}")` }}
+                    />
+                    <p className="max-w-xs text-xs leading-5 text-muted">
+                      El QR se genera desde el Adapter de Yape con el monto actual
+                      del pedido. Si agregas o quitas productos, el monto del QR se
+                      actualiza automáticamente.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </fieldset>
 

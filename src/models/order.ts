@@ -4,6 +4,7 @@ export type OrderStatus =
   | "pending"
   | "accepted"
   | "preparing"
+  | "prepared"
   | "on_the_way"
   | "ready_for_pickup"
   | "delivered"
@@ -39,6 +40,8 @@ export interface OrderItem {
 }
 
 interface CustomerOrderCommon {
+  active?: boolean;
+  deactivatedAt?: string;
   id: string;
   securityCode: string;
   customer: CustomerDetails;

@@ -15,6 +15,11 @@ import type {
 import { orderController } from "@/controllers/order.controller";
 
 interface OrderContextValue {
+  inventory: Record<string, number>;
+  saveAdminOrder: (input: CreateOrderInput, cart: CartItem[], orderId?: string) => CustomerOrder;
+  deleteAdminOrder: (orderId: string) => void;
+  restoreAdminOrder: (orderId: string) => void;
+  updateStock: (productId: string, quantity: number) => void;
   cart: CartItem[];
   orders: CustomerOrder[];
   hydrated: boolean;
@@ -40,7 +45,7 @@ interface OrderContextValue {
 const OrderContext = createContext<OrderContextValue | null>(null);
 
 export function OrderProvider({ children }: { children: ReactNode }) {
-  const { cart, orders, hydrated } = useSyncExternalStore(
+  const { cart, orders, inventory, hydrated } = useSyncExternalStore(
     orderController.subscribeToCustomerState,
     orderController.getCustomerState,
     orderController.getServerCustomerState,
@@ -49,6 +54,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   function addProduct(product: Product) {
     if (!product.available) return;
     const existing = cart.find((item) => item.product.id === product.id);
+    if ((existing?.quantity ?? 0) >= (inventory[product.id] ?? 0)) return;
     orderController.saveCart(
       existing
         ? cart.map((item) =>
@@ -61,6 +67,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   }
 
   function increase(productId: string) {
+    const existing = cart.find(item => item.product.id === productId);
+    if (!existing || existing.quantity >= (inventory[productId] ?? 0)) return;
     orderController.saveCart(
       cart.map((item) =>
         item.product.id === productId
@@ -130,6 +138,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   }
 
   const value: OrderContextValue = {
+    inventory,
+    saveAdminOrder: (input, items, orderId) => orderController.saveAdminOrder(input, items, orderId),
+    deleteAdminOrder: orderId => orderController.deleteAdminOrder(orderId),
+    restoreAdminOrder: orderId => orderController.restoreAdminOrder(orderId),
+    updateStock: (productId, quantity) => orderController.updateStock(productId, quantity),
     cart,
     orders,
     hydrated,

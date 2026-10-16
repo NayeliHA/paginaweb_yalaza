@@ -54,6 +54,22 @@ export class OrderController implements CustomerDataController {
     return this.service.createOrder(input, cart);
   }
 
+  saveAdminOrder(input: CreateOrderInput, cart: CartItem[], orderId?: string): CustomerOrder {
+    return this.service.saveAdminOrder(input, cart, orderId);
+  }
+
+  deleteAdminOrder(orderId: string): void {
+    this.service.deleteAdminOrder(orderId);
+  }
+
+  restoreAdminOrder(orderId: string): void {
+    this.service.restoreAdminOrder(orderId);
+  }
+
+  updateStock(productId: string, quantity: number): void {
+    this.service.updateStock(productId, quantity);
+  }
+
   advanceOrderStatus(orderId: string): CustomerOrder | null {
     return this.service.advanceOrderStatus(orderId);
   }

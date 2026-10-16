@@ -4,6 +4,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Container } from "@/components/ui/Container";
 import { useOrder } from "@/components/orders/OrderProvider";
@@ -15,6 +16,7 @@ const links = [
 ];
 
 export function Navbar() {
+  const isHome = usePathname() === "/";
   const [open, setOpen] = useState(false);
   const { itemCount } = useOrder();
   const { session, logout } = useAuth();
@@ -26,7 +28,7 @@ export function Navbar() {
         : "/cliente";
 
   return (
-    <header className="sticky top-0 z-50 border-b border-cream/10 bg-ink/90 backdrop-blur">
+    <header className={`${isHome ? "absolute inset-x-0 top-0 bg-gradient-to-b from-ink/70 to-transparent" : "sticky top-0 bg-ink/90 backdrop-blur"} z-50 border-b border-cream/10`}>
       <Container className="flex items-center justify-between py-3">
         
         {/* LOGO DE YALAZA */}
@@ -37,7 +39,7 @@ export function Navbar() {
             width={160}
             height={80}
             priority
-            className="h-auto w-[115px] object-contain sm:w-[145px]"
+            className={`h-auto object-contain ${isHome ? "w-[135px] sm:w-[165px]" : "w-[115px] sm:w-[145px]"}`}
           />
         </Link>
 

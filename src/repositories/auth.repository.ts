@@ -1,4 +1,5 @@
 import type { AuthSession, RegisteredUser } from "@/models";
+import { seedDemoCustomers } from "@/lib/demo-customers";
 
 export interface AuthRepository {
   loadUsers(): RegisteredUser[];
@@ -46,7 +47,10 @@ function isAuthSession(value: unknown): value is AuthSession {
 export class LocalStorageAuthRepository implements AuthRepository {
   loadUsers(): RegisteredUser[] {
     const stored = readJson(USERS_KEY);
-    return Array.isArray(stored) ? stored.filter(isRegisteredUser) : [];
+    const current = Array.isArray(stored) ? stored.filter(isRegisteredUser) : [];
+    const seeded = seedDemoCustomers(current);
+    if (seeded.length !== current.length) this.saveUsers(seeded);
+    return seeded;
   }
 
   saveUsers(users: RegisteredUser[]): void {
@@ -54,16 +58,20 @@ export class LocalStorageAuthRepository implements AuthRepository {
   }
 
   loadSession(): AuthSession | null {
-    const stored = readJson(SESSION_KEY);
-    return isAuthSession(stored) ? stored : null;
+    try {
+      const stored: unknown = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? "null");
+      return isAuthSession(stored) ? stored : null;
+    } catch {
+      return null;
+    }
   }
 
   saveSession(session: AuthSession | null): void {
     if (session) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
       return;
     }
-    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
   }
 }
 

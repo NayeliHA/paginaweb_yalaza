@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./panels.css";
 
 :root {
   --background: #140c09;
@@ -61,4 +62,58 @@ body {
 
 .animate-glow {
   animation: yalaza-glow 3.5s ease-in-out infinite;
+}
+
+.yalaza-hero,
+.yalaza-hero-content {
+  min-height: max(760px, 100svh);
+}
+
+.yalaza-hero-content {
+  padding-top: 130px;
+  padding-bottom: 120px;
+}
+
+.yalaza-hero-photo {
+  object-position: center;
+  animation: yalaza-focus 1.4s ease-out both;
+}
+
+.yalaza-hero-title {
+  font-size: clamp(4.5rem, 7.4vw, 7.2rem);
+  line-height: 0.94;
+  letter-spacing: -0.015em;
+}
+
+.yalaza-hero-shade {
+  background: linear-gradient(90deg, rgba(20,12,9,.88) 0%, rgba(20,12,9,.64) 30%, rgba(20,12,9,.1) 65%, rgba(20,12,9,.05) 100%),
+    linear-gradient(0deg, #140c09 0%, transparent 25%, transparent 80%, rgba(20,12,9,.25) 100%);
+}
+
+@keyframes yalaza-focus {
+  from { transform: scale(1.035); opacity: .7; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@media (max-width: 639px) {
+  .yalaza-hero,
+  .yalaza-hero-content {
+    min-height: max(860px, 100svh);
+  }
+  .yalaza-hero-content {
+    justify-content: flex-start;
+    padding-top: 130px;
+    padding-bottom: 280px;
+  }
+  .yalaza-hero-media { top: 32%; }
+  .yalaza-hero-photo { object-position: 72% center; }
+  .yalaza-hero-title { font-size: clamp(3.6rem, 14vw, 5rem); }
+  .yalaza-hero-shade {
+    background: linear-gradient(180deg, #140c09 0%, rgba(20,12,9,.98) 28%, rgba(20,12,9,.4) 53%, rgba(20,12,9,.08) 76%, #140c09 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .animate-rise, .animate-glow, .yalaza-hero-photo { animation: none; }
 }

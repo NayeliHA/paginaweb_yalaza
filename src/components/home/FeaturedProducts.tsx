@@ -5,12 +5,12 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 
 export function FeaturedProducts({ products }: { products: Product[] }) {
   return (
-    <section className="py-8">
+    <section className="py-16 sm:py-24">
       <Container>
         <SectionHeading
           eyebrow="Destacados"
-          title="Las alitas que más piden"
-          description="Una selección inicial para presentar el catálogo. Los precios y productos podrán conectarse a Supabase más adelante."
+          title="Los favoritos de la casa"
+          description="Prueba algunos favoritos de la carta Yalaza y encuentra tu próximo antojo."
         />
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {products.map((product) => (

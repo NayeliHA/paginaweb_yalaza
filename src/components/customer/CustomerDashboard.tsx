@@ -13,8 +13,8 @@ export function CustomerDashboard() {
   const { orders, hydrated, rateOrder } = useOrder();
   const myOrders = orders.filter(
     (order) =>
-      order.customer.id === session?.userId ||
-      order.customer.email === session?.email,
+      order.active !== false && (order.customer.id === session?.userId ||
+      order.customer.email === session?.email),
   );
 
   return (
@@ -55,7 +55,7 @@ export function CustomerDashboard() {
               </p>
             </div>
           ) : (
-            <div className="mt-8 grid gap-5">
+            <div className="mt-8 grid gap-5" aria-live="polite" aria-relevant="text additions">
               {myOrders.map((order) => (
                 <article
                   key={order.id}
