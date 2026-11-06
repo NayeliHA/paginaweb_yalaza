@@ -10,6 +10,17 @@ export interface AnalyticsSettings {
 
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
+function netItemSales(order: CustomerOrder): number[] {
+  const gross = order.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const net = money(Math.max(0, gross - (order.discount ?? 0)));
+  let accumulated = 0, allocated = 0;
+  return order.items.map(item => {
+    accumulated += item.unitPrice * item.quantity;
+    const next = gross ? money(accumulated / gross * net) : 0;
+    const amount = money(next - allocated); allocated = next; return amount;
+  });
+}
+
 // Illustrative assumptions for the academic prototype, not supplier quotations.
 export function defaultUnitCost(product: Product): UnitCost {
   const ratio = product.categoryId === "cat-bebidas" ? 0.65
@@ -72,14 +83,15 @@ export function summarizeWeek(orders: CustomerOrder[], products: Product[], sett
     const day = days.find(item => item.date === limaDate(order.createdAt));
     if (!day) continue;
     day.orders++;
-    registeredAmount += order.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const itemSales = netItemSales(order);
+    registeredAmount += itemSales.reduce((sum, amount) => sum + amount, 0);
     if (order.status !== "delivered" && order.status !== "picked_up") continue;
     day.completed++;
-    for (const item of order.items) {
+    for (const [index, item] of order.items.entries()) {
       const product = products.find(product => product.id === item.productId);
       const unit = settings.costs[item.productId] ?? (product ? defaultUnitCost(product) : undefined);
       if (!unit) missingCosts = true;
-      const sales = money(item.unitPrice * item.quantity);
+      const sales = itemSales[index];
       const cost = money((unit ? unit.ingredients + unit.packaging : 0) * item.quantity);
       day.sales += sales;
       day.cost += cost;
@@ -119,10 +131,11 @@ export function summarizeDay(orders: CustomerOrder[], products: Product[], setti
   for (const order of completed) {
     delivery += order.deliveryFee;
     payments[order.paymentMethod] = (payments[order.paymentMethod] ?? 0) + order.total;
-    for (const item of order.items) {
+    const itemSales = netItemSales(order);
+    for (const [index, item] of order.items.entries()) {
       const product = products.find(product => product.id === item.productId);
       const unit = settings.costs[item.productId] ?? (product ? defaultUnitCost(product) : { ingredients: 0, packaging: 0 });
-      const amount = item.unitPrice * item.quantity;
+      const amount = itemSales[index];
       sales += amount;
       cost += (unit.ingredients + unit.packaging) * item.quantity;
       const row = sold.get(item.productId) ?? { id: item.productId, name: item.name, quantity: 0, sales: 0 };

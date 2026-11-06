@@ -3,37 +3,32 @@
 import {
   createContext,
   useContext,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import type { AuthSession, LoginInput, RegisterCustomerInput, RegisteredUser } from "@/models";
-import { authController } from "@/controllers/auth.controller";
+import { cloudCommand, useCloudState } from "@/services/cloud-state.service";
 
 interface AuthContextValue {
   customers: RegisteredUser[];
   session: AuthSession | null;
   hydrated: boolean;
-  registerCustomer: (input: RegisterCustomerInput) => AuthSession;
-  login: (input: LoginInput) => AuthSession;
-  logout: () => void;
+  registerCustomer: (input: RegisterCustomerInput) => Promise<AuthSession>;
+  login: (input: LoginInput) => Promise<AuthSession>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { users, session, hydrated } = useSyncExternalStore(
-    authController.subscribeToAuthState,
-    authController.getAuthState,
-    authController.getServerAuthState,
-  );
+  const { users, session, hydrated } = useCloudState();
 
   const value: AuthContextValue = {
     customers: users.filter(user => user.role === "customer"),
     session,
     hydrated,
-    registerCustomer: authController.registerCustomer,
-    login: authController.login,
-    logout: authController.logout,
+    registerCustomer: input => cloudCommand<AuthSession>("register", input),
+    login: input => cloudCommand<AuthSession>("login", input),
+    logout: () => cloudCommand("logout"),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

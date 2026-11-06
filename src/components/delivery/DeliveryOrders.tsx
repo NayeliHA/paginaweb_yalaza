@@ -1,4 +1,5 @@
 "use client";
+import { showCloudError } from "@/services/cloud-state.service";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -94,23 +95,25 @@ export function DeliveryOrders({
 
   const onTheWay = deliveryOrders.filter(order => order.status === "on_the_way").length;
 
-  function handleAccept(orderId: string) {
-    acceptOrder(orderId, session?.name ?? "Delivery");
-    setMessage("Pedido tomado. Revísalo en Ruta de entrega.");
+  async function handleAccept(orderId: string) {
+    try { await acceptOrder(orderId, session?.name ?? "Delivery"); setMessage("Pedido tomado. Revísalo en Ruta de entrega."); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo tomar el pedido."); }
   }
 
-  function handleArrived(orderId: string) {
-    if (!markArrived(orderId)) {
+  async function handleArrived(orderId: string) {
+    try {
+    if (!await markArrived(orderId)) {
       setMessage("Primero avanza el pedido hasta En camino.");
       return;
     }
     setMessage("Llegada marcada. Ahora valida el código del cliente.");
     router.push("/delivery/verificar");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo confirmar la llegada."); }
   }
 
-  function handleVerify(orderId: string) {
-    const result = verifyOrder(orderId, codes[orderId] ?? "");
-    setMessage(result ? "Código correcto. Pedido entregado." : "Código incorrecto.");
+  async function handleVerify(orderId: string) {
+    try { const result = await verifyOrder(orderId, codes[orderId] ?? ""); setMessage(result ? "Código correcto. Pedido entregado." : "Código incorrecto."); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo verificar."); }
   }
 
 
@@ -152,7 +155,7 @@ export function DeliveryOrders({
                 <PanelEmpty title="Sin repartos" description="Los pedidos que coincidan con tus filtros aparecerán aquí." />}
             </section>
             <div className="min-w-0">{selectedOrder ?
-              <DeliveryDetail order={selectedOrder} onAccept={handleAccept} onAdvance={advanceOrderStatus} /> :
+              <DeliveryDetail order={selectedOrder} onAccept={handleAccept} onAdvance={id => void advanceOrderStatus(id).catch(showCloudError)} /> :
               <PanelEmpty title="Todo listo para la siguiente entrega" description="Selecciona un reparto para ver la dirección, los productos y las acciones disponibles." />}</div>
           </div>
         )}
@@ -399,7 +402,7 @@ function FinishedView({
   onRate,
   orders,
 }: {
-  onRate: (orderId: string, rating: "good" | "regular" | "bad") => CustomerOrder | null;
+  onRate: (orderId: string, rating: "good" | "regular" | "bad") => Promise<CustomerOrder | null>;
   orders: DeliveryOrder[];
 }) {
   return (
@@ -422,7 +425,7 @@ function FinishedView({
                     <button
                       key={rating}
                       type="button"
-                      onClick={() => onRate(order.id, rating)}
+                      onClick={() => void onRate(order.id, rating).catch(showCloudError)}
                       className={`rounded-full px-4 py-2 text-xs font-semibold ${order.deliveryRating === rating ? "bg-ember text-ink" : "bg-white text-ink/60"}`}
                     >
                       {rating === "good" ? "Bueno" : rating === "regular" ? "Regular" : "Malo"}
@@ -457,7 +460,7 @@ function InfoGrid({ order }: { order: DeliveryOrder }) {
   return (
     <>
       <div className="mt-6 grid gap-4 md:grid-cols-3">
-        <InfoBox label="Código">{order.status === "pending" ? "Tomar pedido" : order.securityCode}</InfoBox>
+        <InfoBox label="Verificación">Solicitar código al cliente</InfoBox>
         <InfoBox label="Pago">{order.paymentLabel}</InfoBox>
         <InfoBox label="Total">{formatPrice(order.total)}</InfoBox>
       </div>

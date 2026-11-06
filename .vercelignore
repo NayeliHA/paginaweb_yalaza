@@ -1,0 +1,10 @@
+.env*
+.git
+.next
+.openai
+node_modules
+out
+tmp
+referencias
+*.tsbuildinfo
+supabase

@@ -120,17 +120,17 @@ export function BusinessDashboard() {
       <details className="analytics-cost-details"><summary>Editar costos de los {products.length} productos</summary>
         <div className="analytics-cost-grid">{products.map(product => {
           const cost = settings.costs[product.id] ?? defaultUnitCost(product);
-          return <CostEditor key={`${product.id}-${cost.ingredients}-${cost.packaging}`} name={product.name} price={product.price} cost={cost} custom={Boolean(settings.costs[product.id])} onSave={next => {
-            try { save({ ...settings, costs: { ...settings.costs, [product.id]: next } }); setMessage(`Costos de ${product.name} guardados.`); }
+          return <CostEditor key={`${product.id}-${cost.ingredients}-${cost.packaging}`} name={product.name} price={product.price} cost={cost} custom={Boolean(settings.costs[product.id])} onSave={async next => {
+            try { await save({ ...settings, costs: { ...settings.costs, [product.id]: next } }); setMessage(`Costos de ${product.name} guardados.`); }
             catch { setMessage("No se pudieron guardar los costos en este navegador."); }
           }} />;
         })}</div>
       </details>
-      <form key={`${settings.weeklyExpenses}-${settings.lowStock}-${settings.targetStock}`} className="analytics-settings" onSubmit={event => {
+      <form key={`${settings.weeklyExpenses}-${settings.lowStock}-${settings.targetStock}`} className="analytics-settings" onSubmit={async event => {
         event.preventDefault(); const form = new FormData(event.currentTarget);
         const weeklyExpenses = Number(form.get("expenses")), lowStock = Number(form.get("low")), targetStock = Number(form.get("target"));
         if (!Number.isFinite(weeklyExpenses) || weeklyExpenses < 0 || !Number.isSafeInteger(lowStock) || lowStock < 0 || !Number.isSafeInteger(targetStock) || targetStock <= lowStock) { setMessage("El stock objetivo debe superar el umbral y los importes deben ser válidos."); return; }
-        try { save({ ...settings, weeklyExpenses, lowStock, targetStock }); setMessage("Gastos y reglas de reposición guardados."); }
+        try { await save({ ...settings, weeklyExpenses, lowStock, targetStock }); setMessage("Gastos y reglas de reposición guardados."); }
         catch { setMessage("No se pudo guardar la configuración."); }
       }}>
         <label>Gastos de lunes a viernes (S/)<input name="expenses" type="number" min="0" step="0.01" required defaultValue={settings.weeklyExpenses} /><small>Ejemplo inicial: S/ 250 para personal, servicios y alquiler.</small></label>

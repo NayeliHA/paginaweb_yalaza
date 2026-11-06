@@ -28,6 +28,8 @@ export function buildWhatsAppOrderUrl(order: CustomerOrder): string | null {
     `Cliente: ${order.customer.name} · ${order.customer.phone}`,
     `Modalidad: ${fulfillmentSummary}`,
     ...lines,
+    ...(order.discount ? [`${order.promotionLabel}: -${formatPrice(order.discount)}`] : []),
+    `Delivery: ${formatPrice(order.deliveryFee)}`,
     `Total mostrado: ${formatPrice(order.total)}`,
   ].join("\n");
 

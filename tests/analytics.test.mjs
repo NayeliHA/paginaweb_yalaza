@@ -14,6 +14,17 @@ const product = { id: "p1", name: "Alitas", price: 16, categoryId: "cat-alitas" 
 const settings = { costs: { p1: { ingredients: 7, packaging: 1 } }, weeklyExpenses: 10, lowStock: 10, targetStock: 30 };
 const order = (overrides = {}) => ({ id: "YZ-1", active: true, createdAt: "2026-10-12T18:00:00Z", status: "delivered", items: [{ productId: "p1", name: "Alitas", unitPrice: 16, quantity: 2 }], ...overrides });
 
+test("birthday discounts reduce reported sales and profit without reducing product costs", () => {
+  const discounted = order({ discount: 3.2, total: 28.8, deliveryFee: 0, paymentMethod: "cash" });
+  const daily = summarizeDay([discounted], [product], settings, "2026-10-12");
+  assert.equal(daily.sales, 28.8);
+  assert.equal(daily.cost, 16);
+  assert.equal(daily.gross, 12.8);
+  const weekly = summarizeWeek([discounted], [product], settings, "2026-10-12");
+  assert.equal(weekly.sales, 28.8);
+  assert.equal(weekly.registeredAmount, 28.8);
+});
+
 test("weekly totals distinguish pending orders from completed sales and subtract unit costs and expenses", () => {
   const result = summarizeWeek([order(), order({ id: "pending", status: "pending" })], [product], settings, "2026-10-12");
   assert.equal(result.count, 2);

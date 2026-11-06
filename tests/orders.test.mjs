@@ -81,7 +81,7 @@ test("startup inserts 20 demo customers once and preserves existing users", () =
   assert.equal(app.auth.getUsers().find(user => user.id === "demo-customer-05").lastName, "Herrera Albino");
   const reloaded = runtime(app.shared);
   assert.equal(reloaded.auth.getUsers().filter(user => user.role === "customer").length, 20);
-  app.auth.registerCustomer({name: "Cliente", lastName: "Nuevo", age: 24, email: "nuevo@example.test", phone: "912345678", password: "demo123"});
+  app.auth.registerCustomer({name: "Cliente", lastName: "Nuevo", birthDate: "2002-01-01", email: "nuevo@example.test", phone: "912345678", password: "demo123"});
   assert.equal(runtime(app.shared).auth.getUsers().filter(user => user.role === "customer").length, 21);
 });
 

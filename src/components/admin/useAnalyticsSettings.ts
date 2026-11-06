@@ -1,7 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-import { readAnalyticsSettings, type AnalyticsSettings } from "@/lib/business-analytics";
+import { type AnalyticsSettings } from "@/lib/business-analytics";
+import { useCloudState, cloudCommand } from "@/services/cloud-state.service";
 
 const KEY = "yalaza:analytics:v1";
 const EVENT = "yalaza:analytics-change";
@@ -15,11 +15,9 @@ function snapshot() { try { return window.localStorage.getItem(KEY); } catch { r
 const serverSnapshot = () => null;
 
 export function useAnalyticsSettings() {
-  const raw = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
-  const settings = readAnalyticsSettings(raw);
-  function save(next: AnalyticsSettings) {
-    window.localStorage.setItem(KEY, JSON.stringify(next));
-    window.dispatchEvent(new Event(EVENT));
+  const { analyticsSettings: settings } = useCloudState();
+  async function save(next: AnalyticsSettings) {
+    await cloudCommand("saveAnalyticsSettings", next);
   }
   return { settings, save };
 }

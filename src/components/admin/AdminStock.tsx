@@ -43,8 +43,8 @@ export function AdminStock() {
     {message ? <p role="status" className="mt-4 rounded-xl bg-gold/30 p-3 text-sm font-bold">{message}</p> : null}
     {!hydrated ? <p className="mt-5">Cargando stock...</p> : <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {visible.map(product => <StockItem key={`${product.id}-${inventory[product.id]}`} name={product.name} image={product.image} quantity={inventory[product.id] ?? 0} threshold={settings.lowStock}
-        onSave={quantity => {
-          try { updateStock(product.id, quantity); setMessage(`Stock de ${product.name} actualizado a ${quantity}.`); }
+        onSave={async quantity => {
+          try { await updateStock(product.id, quantity); setMessage(`Stock de ${product.name} actualizado a ${quantity}.`); }
           catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo actualizar."); }
         }} />)}
     </div>}

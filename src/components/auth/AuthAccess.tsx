@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { UserRole } from "@/models";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Container } from "@/components/ui/Container";
+import { ageOn, peruToday } from "@/lib/birthday";
 
 const roleOptions: { role: UserRole; label: string; hint: string }[] = [
   { role: "customer", label: "Cliente", hint: "Comprar y ver mis pedidos" },
@@ -25,27 +26,27 @@ export function AuthAccess() {
   const [role, setRole] = useState<UserRole>("customer");
   const [name, setName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [age, setAge] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     try {
       const session =
         mode === "register"
-          ? registerCustomer({
+          ? await registerCustomer({
               name,
               lastName,
-              age: Number(age),
+              birthDate,
               email,
               phone,
               password,
             })
-          : login({ role, email, password });
+          : await login({ role, email, password });
       router.push(redirects[session.role]);
     } catch (authError) {
       setError(
@@ -152,11 +153,12 @@ export function AuthAccess() {
                 <Input label="Nombre" value={name} onChange={setName} />
                 <Input label="Apellido" value={lastName} onChange={setLastName} />
                 <Input
-                  label="Edad"
-                  type="number"
-                  value={age}
-                  onChange={setAge}
-                  min={13}
+                  label="Fecha de nacimiento"
+                  type="date"
+                  value={birthDate}
+                  onChange={setBirthDate}
+                  max={peruToday()}
+                  autoComplete="bday"
                 />
                 <Input
                   label="Celular"
@@ -167,6 +169,8 @@ export function AuthAccess() {
                 />
               </div>
             ) : null}
+
+            {mode === "register" ? <p className="mt-3 text-xs leading-5 text-muted">{birthDate && ageOn(birthDate) !== undefined ? `Edad actual: ${ageOn(birthDate)} años. ` : ""}Calcularemos tu edad automáticamente y tendrás una promoción en tu cumpleaños. Debes tener al menos 13 años.</p> : null}
 
             <div className="mt-4 grid gap-4">
               <Input

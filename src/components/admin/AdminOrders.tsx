@@ -1,4 +1,5 @@
 "use client";
+import { showCloudError } from "@/services/cloud-state.service";
 
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
@@ -106,13 +107,15 @@ export function AdminOrders({
     (order) => order.status === "delivered" || order.status === "picked_up",
   );
 
-  function handleVerify(orderId: string) {
-    const result = verifyOrder(orderId, codes[orderId] ?? "");
+  async function handleVerify(orderId: string) {
+    try {
+    const result = await verifyOrder(orderId, codes[orderId] ?? "");
     setMessage(
       result
         ? `Pedido ${orderId.slice(-6)} verificado.`
         : "Código incorrecto.",
     );
+    } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo verificar."); }
   }
 
 
@@ -175,8 +178,8 @@ export function AdminOrders({
                 <div className="min-w-0">
                   {selectedOrder ? <OrderDetail order={selectedOrder} code={codes[selectedOrder.id] ?? ""}
                     onCodeChange={value => setCodes(current => ({ ...current, [selectedOrder.id]: value.replace(/\D/g, "") }))}
-                    onAccept={() => acceptOrder(selectedOrder.id, session?.name ?? "Administrador")}
-                    onAdvance={() => advanceOrderStatus(selectedOrder.id)} onVerify={() => handleVerify(selectedOrder.id)}
+                    onAccept={() => void acceptOrder(selectedOrder.id, session?.name ?? "Administrador").catch(showCloudError)}
+                    onAdvance={() => void advanceOrderStatus(selectedOrder.id).catch(showCloudError)} onVerify={() => handleVerify(selectedOrder.id)}
                     allowVerification={section === "verification" || selectedOrder.fulfillmentType === "pickup"} /> :
                     <PanelEmpty title="Todo listo para empezar" description="Registra un pedido o selecciona uno de la lista para consultar su detalle." />}
                 </div>

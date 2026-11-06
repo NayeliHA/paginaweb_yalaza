@@ -47,6 +47,8 @@ interface CustomerOrderCommon {
   customer: CustomerDetails;
   items: OrderItem[];
   subtotal: number;
+  discount?: number;
+  promotionLabel?: string;
   deliveryFee: number;
   total: number;
   paymentMethod: PaymentMethod;

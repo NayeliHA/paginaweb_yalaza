@@ -4,6 +4,7 @@ import type {
   RegisterCustomerInput,
   RegisteredUser,
 } from "@/models";
+import { ageOn } from "@/lib/birthday";
 import {
   getAuthSnapshot,
   saveAuthSession,
@@ -74,8 +75,9 @@ export class AuthFacade {
 
     if (name.length < 2) throw new Error("Ingresa un nombre válido.");
     if (lastName.length < 2) throw new Error("Ingresa un apellido válido.");
-    if (!Number.isInteger(input.age) || input.age < 13) {
-      throw new Error("Ingresa una edad válida.");
+    const age = ageOn(input.birthDate);
+    if (age === undefined || age < 13 || age > 120) {
+      throw new Error("Ingresa una fecha de nacimiento válida. Debes tener al menos 13 años.");
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new Error("Ingresa un correo válido.");
@@ -97,7 +99,7 @@ export class AuthFacade {
       role: "customer",
       name,
       lastName,
-      age: input.age,
+      birthDate: input.birthDate,
       email,
       phone,
       password,

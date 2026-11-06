@@ -12,6 +12,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useOrder } from "@/components/orders/OrderProvider";
 import { Container } from "@/components/ui/Container";
 import { businessConfig } from "@/lib/business-config";
+import { BIRTHDAY_DISCOUNT_PERCENT } from "@/lib/birthday";
 import { quoteDelivery } from "@/lib/delivery-settings";
 import { useDeliverySettings } from "@/components/admin/DeliverySettingsEditor";
 import { formatPrice } from "@/lib/format";
@@ -28,7 +29,8 @@ export function CheckoutForm() {
   const { session } = useAuth();
   const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>("delivery");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  const [name, setName] = useState(session?.name ?? "");
+  const [name, setName] = useState<string | null>(null);
+  const recipientName = name ?? [session?.name, session?.lastName].filter(Boolean).join(" ");
   const [phone, setPhone] = useState("");
   const [district, setDistrict] = useState("");
   const [address, setAddress] = useState("");
@@ -40,7 +42,8 @@ export function CheckoutForm() {
   const deliverySettings = useDeliverySettings();
   const quote = quoteDelivery(district, deliverySettings);
   const deliveryFee = fulfillmentType === "delivery" ? quote.fee : 0;
-  const total = Math.round((subtotal + deliveryFee) * 100) / 100;
+  const discount = session?.birthdayToday ? Math.round(subtotal * BIRTHDAY_DISCOUNT_PERCENT) / 100 : 0;
+  const total = Math.round((subtotal - discount + deliveryFee) * 100) / 100;
   const paymentPreview = useMemo(
     () => createPaymentProcessor(paymentMethod).prepare(total),
     [paymentMethod, total],
@@ -62,7 +65,7 @@ export function CheckoutForm() {
     );
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     try {
@@ -75,11 +78,10 @@ export function CheckoutForm() {
               ...(coordinates ?? {}),
             }
           : undefined;
-      const order = submitOrder({
+      const order = await submitOrder({
         customer: {
           id: session?.userId,
-          name: session?.name ?? name,
-          lastName: session?.lastName,
+          name: recipientName.trim(),
           email: session?.email,
           phone,
         },
@@ -135,7 +137,7 @@ export function CheckoutForm() {
         <Container>
           <div className="max-w-2xl border border-cream/10 bg-card p-7 sm:p-10">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-ember">
-              Pedido registrado localmente
+              Pedido registrado
             </p>
             <h1 className="mt-3 font-display text-6xl leading-none text-cream">
               Gracias, {confirmedOrder.customer.name}
@@ -155,6 +157,7 @@ export function CheckoutForm() {
                   </li>
                 ))}
               </ul>
+              {confirmedOrder.discount ? <p className="mt-3 flex justify-between text-sm text-gold"><span>{confirmedOrder.promotionLabel}</span><span>−{formatPrice(confirmedOrder.discount)}</span></p> : null}
               <p className="mt-4 flex justify-between font-semibold text-gold">
                 <span>Total con entrega</span>
                 <span>{formatPrice(confirmedOrder.total)}</span>
@@ -165,7 +168,7 @@ export function CheckoutForm() {
               </p>
             </div>
             <p className="mt-4 text-xs leading-5 text-muted">
-              El pedido está guardado solo en este navegador; todavía no se envía a un sistema del local.
+              El local y el repartidor ya pueden consultar tu pedido y actualizar su estado.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               {whatsappUrl ? (
@@ -221,16 +224,20 @@ export function CheckoutForm() {
             <fieldset className="space-y-4">
               <legend className="font-display text-3xl text-cream">Contacto</legend>
               <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase text-muted">Nombre</span>
+                <span className="mb-2 block text-xs font-semibold uppercase text-muted">Nombre para el pedido</span>
                 <input
                   required
+                  type="text"
+                  name="recipientName"
                   minLength={2}
+                  maxLength={100}
                   autoComplete="name"
-                  value={name}
+                  value={recipientName}
                   onChange={(event) => setName(event.target.value)}
-                  disabled={Boolean(session)}
+                  placeholder="Nombre de quien recibe o recoge"
                   className="w-full rounded-lg border border-cream/15 bg-card px-4 py-3 text-cream outline-none focus:border-ember"
                 />
+                <span className="mt-2 block text-xs text-muted">Puedes cambiarlo si otra persona recibirá o recogerá el pedido.</span>
               </label>
               <label className="block">
                 <span className="mb-2 block text-xs font-semibold uppercase text-muted">Celular</span>
@@ -399,6 +406,10 @@ export function CheckoutForm() {
               <span>Subtotal</span>
               <span>{formatPrice(subtotal)}</span>
             </div>
+            <div className="mt-3 flex justify-between font-semibold text-gold">
+              <span>Delivery</span><span>{formatPrice(deliveryFee)}</span>
+            </div>
+            {discount > 0 ? <p className="mt-3 flex justify-between text-sm text-gold"><span>Cumpleaños −{BIRTHDAY_DISCOUNT_PERCENT}%</span><span>−{formatPrice(discount)}</span></p> : null}
             <div className="mt-3 flex justify-between font-semibold text-gold">
               <span>Total con entrega</span>
               <span>{formatPrice(total)}</span>

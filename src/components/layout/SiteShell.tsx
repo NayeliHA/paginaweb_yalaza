@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
 import { FloatingCart } from "@/components/orders/FloatingCart";
 import { OrderProvider } from "@/components/orders/OrderProvider";
+import { SyncStatus } from "./SyncStatus";
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -17,6 +18,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
     <AuthProvider>
       <OrderProvider>
         <div className="flex min-h-screen flex-col bg-ink">
+          <SyncStatus />
           {isPanelRoute ? null : <Navbar />}
           <main className="flex-1">{children}</main>
           {isPanelRoute ? null : <FloatingCart />}

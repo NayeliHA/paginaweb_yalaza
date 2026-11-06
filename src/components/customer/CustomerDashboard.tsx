@@ -1,4 +1,8 @@
 "use client";
+import { showCloudError } from "@/services/cloud-state.service";
+import { cloudCommand } from "@/services/cloud-state.service";
+import { useState } from "react";
+import { BIRTHDAY_DISCOUNT_PERCENT, peruToday } from "@/lib/birthday";
 
 import Link from "next/link";
 import { RoleGate } from "@/components/auth/RoleGate";
@@ -41,6 +45,8 @@ export function CustomerDashboard() {
               Hacer pedido
             </Link>
           </div>
+
+          <BirthdayProfile />
 
           {!hydrated ? (
             <p className="mt-8 text-muted">Cargando tus pedidos...</p>
@@ -109,6 +115,7 @@ export function CustomerDashboard() {
                       <p className="mt-2 text-lg font-bold text-gold">
                         {formatPrice(order.total)}
                       </p>
+                      {order.discount ? <p className="mt-1 text-sm text-gold">{order.promotionLabel}: −{formatPrice(order.discount)}</p> : null}
                     </div>
                   </div>
                   {order.status === "delivered" || order.status === "picked_up" ? (
@@ -119,7 +126,7 @@ export function CustomerDashboard() {
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => rateOrder(order.id, "yes")}
+                          onClick={() => void rateOrder(order.id, "yes").catch(showCloudError)}
                           className={`rounded-full px-4 py-2 text-xs font-bold uppercase ${
                             order.customerRating === "yes"
                               ? "bg-ember text-ink"
@@ -130,7 +137,7 @@ export function CustomerDashboard() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => rateOrder(order.id, "no")}
+                          onClick={() => void rateOrder(order.id, "no").catch(showCloudError)}
                           className={`rounded-full px-4 py-2 text-xs font-bold uppercase ${
                             order.customerRating === "no"
                               ? "bg-ember text-ink"
@@ -150,4 +157,29 @@ export function CustomerDashboard() {
       </section>
     </RoleGate>
   );
+}
+
+function BirthdayProfile() {
+  const { session } = useAuth();
+  const [birthDate, setBirthDate] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  if (!session) return null;
+  return <section className="mt-8 rounded-xl border border-gold/30 bg-card p-5 sm:p-6">
+    <h2 className="font-display text-3xl text-gold">{session.birthdayToday ? `¡Feliz cumpleaños, ${session.name}!` : "Tu cumpleaños con Yalaza"}</h2>
+    {session.birthDate ? <>
+      <p className="mt-2 text-sm text-cream">Fecha de nacimiento: {session.birthDate.split("-").reverse().join("/")} · {session.age} años</p>
+      <p className="mt-2 text-sm text-muted">{session.birthdayToday ? `Hoy tienes ${BIRTHDAY_DISCOUNT_PERCENT}% de descuento automático en los productos de tus pedidos. El delivery se cobra aparte.` : `En tu cumpleaños tendrás ${BIRTHDAY_DISCOUNT_PERCENT}% de descuento en productos. Tu edad se actualiza automáticamente.`}</p>
+    </> : <form className="mt-3 space-y-3" onSubmit={async event => {
+      event.preventDefault(); if (saving) return; setSaving(true); setMessage("");
+      try { await cloudCommand("setBirthDate", birthDate); setMessage("Fecha de nacimiento guardada."); }
+      catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo guardar."); }
+      finally { setSaving(false); }
+    }}>
+      <p className="text-sm text-muted">Completa tu fecha para calcular tu edad y recibir tu promoción. Puedes registrarla una sola vez.</p>
+      <label className="block text-sm text-cream">Fecha de nacimiento<input required type="date" autoComplete="bday" max={peruToday()} value={birthDate} onChange={event => setBirthDate(event.target.value)} className="mt-2 block rounded-lg border border-cream/20 bg-ink px-3 py-2 text-cream" /></label>
+      <button disabled={saving} type="submit" className="rounded-full bg-ember px-4 py-2 text-sm font-bold text-ink disabled:opacity-50">{saving ? "Guardando…" : "Guardar fecha"}</button>
+    </form>}
+    {message ? <p role="status" className="mt-3 text-sm text-cream">{message}</p> : null}
+  </section>;
 }

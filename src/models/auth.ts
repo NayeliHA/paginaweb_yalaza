@@ -5,7 +5,8 @@ export interface RegisteredUser {
   role: UserRole;
   name: string;
   lastName: string;
-  age: number;
+  birthDate?: string;
+  age?: number;
   email: string;
   phone: string;
   password: string;
@@ -13,6 +14,9 @@ export interface RegisteredUser {
 }
 
 export interface AuthSession {
+  birthDate?: string;
+  age?: number;
+  birthdayToday?: boolean;
   userId: string;
   role: UserRole;
   name: string;
@@ -23,7 +27,7 @@ export interface AuthSession {
 export interface RegisterCustomerInput {
   name: string;
   lastName: string;
-  age: number;
+  birthDate: string;
   email: string;
   phone: string;
   password: string;

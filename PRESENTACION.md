@@ -17,8 +17,8 @@ En **Ingresar**, cambia a **Iniciar sesión** y selecciona el rol.
 5. En **Gestionar pedidos**, registra un pedido para un cliente de ejemplo y muestra cómo descuenta stock. Desactivar un pendiente devuelve sus unidades; restaurarlo vuelve a reservarlas.
 6. Abre otra pestaña del mismo navegador e inicia sesión como repartidor o cliente. Muestra el avance y la confirmación por código.
 
-## Alcance de la demo
+## Publicación y datos compartidos
 
-La página está preparada para publicación estática con Next.js. Pedidos, stock, tarifas y costos se guardan en el navegador; comparten cambios entre pestañas del mismo origen, pero no entre dispositivos. Las cuentas y los pagos son de demostración: no se procesan cobros. La integración de una base de datos y autenticación de servidor queda pendiente para uso real.
+Abre https://yalaza-alitas.vercel.app desde cualquier dispositivo. Pedidos, stock, clientes y configuración se guardan en Supabase y se actualizan automáticamente aproximadamente cada 2.5 segundos con la página visible. Puedes iniciar sesión como administrador en una computadora y como delivery en un celular para mostrar el mismo pedido y sus cambios. Solo el carrito es local.
 
-El reporte diario atribuye ventas a la fecha de entrega/recojo (hora de Perú); para registros antiguos sin fecha de verificación usa la fecha de creación. El reporte semanal conserva el análisis de lunes a viernes por fecha de registro. Las ganancias usan costos editables de ejemplo y no son una utilidad contable verificada.
+Las cuentas conocidas y los pagos siguen siendo de demostración. El reporte diario atribuye ventas a la fecha de entrega/recojo (hora de Perú); para registros antiguos sin fecha de verificación usa la fecha de creación. Las ganancias usan costos editables y no son una utilidad contable verificada.

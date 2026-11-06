@@ -1,92 +1,34 @@
-This is a Next.js project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Yalaza — Vercel + Supabase
 
-## Yalaza
+Sitio publicado: https://yalaza-alitas.vercel.app
 
-Proyecto académico de Arquitectura de Software para un emprendimiento de comida rápida especializado en alitas.
+## Estado actual
 
-Stack: Next.js (App Router), React, TypeScript, Tailwind CSS, pnpm. Supabase y Vercel se incorporarán más adelante.
+Los pedidos, clientes, existencias, tarifas de delivery y costos del dashboard se guardan en Supabase. La app consulta cambios cada 2.5 segundos mientras está visible y al recuperar conexión/foco. Las sesiones son independientes por pestaña; solo el carrito permanece en el navegador.
 
-## Getting Started
+Next.js sirve `/api/store/`. El servidor valida las sesiones y los roles, calcula precios desde el catálogo y aplica cada cambio de pedido junto con el stock mediante una actualización atómica con revisión. Si dos dispositivos compiten por las últimas unidades, uno recibe un error de stock; no se sobrescribe la operación del otro.
 
-Primero instala dependencias y arranca el servidor de desarrollo:
+La tabla tiene RLS y no admite acceso directo desde clientes públicos. El puente de Supabase verifica una credencial de servidor; las claves de servicio no se envían al navegador. Las contraseñas se guardan como hashes scrypt y los tokens de sesión como hashes SHA-256.
 
-```bash
-pnpm install
-pnpm dev
-```
+## Configuración
 
-Abre [http://localhost:3000](http://localhost:3000) en el navegador.
+Variables privadas en `.env.local` y en Vercel (Production y Preview):
 
-## Arquitectura
+- `SUPABASE_URL`
+- `YALAZA_DATABASE_SECRET`
 
-El código de `src` está organizado en capas:
+El puente está en `supabase/functions/yalaza-database/index.ts`; su hash debe corresponder a la credencial privada. El esquema está en `supabase/migrations/202611060001_shared_store.sql`. El proyecto usa la base Supabase `wnlyizahktkdehxyjlgt` y el proyecto Vercel `undc1/yalaza-alitas`.
 
-- Presentación: `app/`, `components/`
-- Lógica de negocio: `controllers/`, `services/`
-- Persistencia: `repositories/`, `lib/supabase/`
-- Modelos y patrones: `models/`, `patterns/`
+Ejecutar: `npm run dev`. Validar: `npm test` y `npm run build`. Publicar desde esta carpeta: `vercel deploy --project yalaza-alitas --scope undc1 --prod`. Las variables están guardadas en Vercel.
 
-## Flujo del cliente
+## Accesos académicos
 
-El menú se obtiene mediante `catalog.controller` → `catalog.service` →
-`catalog.repository`. El carrito y los pedidos se coordinan con
-`order.controller` → `order.service` → `customer.repository`; por ahora este
-último usa `localStorage` en el navegador y no constituye un registro real del
-negocio.
+- Administrador: `admin@yalaza.pe` / `admin123`.
+- Delivery: `delivery@yalaza.pe` / `delivery123`.
+- Cliente: `cliente01@yalaza.test` / `cliente123`.
 
-El número de WhatsApp y la dirección de recojo se centralizan en
-`src/lib/business-config.ts`. Se pueden configurar con las variables públicas
-`NEXT_PUBLIC_YALAZA_WHATSAPP_NUMBER` (formato internacional, solo dígitos) y
-`NEXT_PUBLIC_YALAZA_PICKUP_ADDRESS` en `.env.local`. No se incluyen secretos.
-La tarifa de delivery permanece en cero hasta que el negocio defina su costo.
+Los pagos siguen siendo una simulación, sin cobro bancario. Los accesos conocidos son de demostración; usar esta instancia para la presentación académica.
 
-El catálogo local refleja la carta digital pública de Yalaza: alitas,
-hamburguesas, combos y platos, extras y bebidas. Los productos y precios están
-definidos en `src/repositories/catalog.repository.ts`; aún no se administran
-desde Supabase.
+## Versiones anteriores
 
-## Pedidos y stock en administración
-
-En `/admin/gestionar` el administrador registra pedidos seleccionando un cliente
-existente, productos, cantidades, modalidad y pago. Puede consultar todos los
-pedidos y editar o desactivar los pendientes; los que ya están en atención se
-conservan. En `/admin/pedidos` la tabla muestra todos los registros, permite
-filtrar Activos/Inactivos y ofrece el mismo CRUD. Eliminar es una baja lógica:
-conserva el pedido como inactivo y muestra solamente Restaurar. No se puede
-editar ni avanzar un pedido inactivo. Al restaurarlo se vuelve a comprobar y
-descontar su stock. En `/admin/stock` consulta y ajusta las existencias.
-
-Al abrir la aplicación se insertan 20 clientes de ejemplo automáticamente, sin
-duplicarlos ni sobrescribir registros existentes. Sus correos van de
-`cliente01@yalaza.test` a `cliente20@yalaza.test`, todos con contraseña
-`cliente123`. Los primeros cinco son Jesus Anderson Cuadros Yaranga, Yusef
-Llallahui Huaraca, Javier Chavez de la Cruz, Brayan Steven Misaico Chavez y
-Nayeli Rocio Herrera Albino. Los teléfonos son ficticios.
-
-También se insertan cinco pedidos pendientes de ejemplo, uno para cada uno de
-estos primeros cinco clientes. Tienen identificadores `YZ-DEMO-001` a
-`YZ-DEMO-005`, combinan delivery y recojo, y descuentan stock al crearse.
-La carga es única: recargar no duplica los ejemplos ni reactiva pedidos
-desactivados por el administrador.
-
-Administrador: `admin@yalaza.pe` / `admin123`.
-Delivery: `delivery@yalaza.pe` / `delivery123`.
-
-Cada producto comienza con 100 unidades; cada combo se cuenta como una unidad
-independiente. Se descuentan al registrar el pedido y se ajustan por diferencia
-al editar. Desactivar un pendiente devuelve las unidades; restaurarlo vuelve
-a reservarlas y se rechaza si no hay stock suficiente. Pedidos y stock se
-guardan juntos para evitar escrituras parciales, y se rechazan cantidades
-inválidas o superiores al stock. Al migrar pedidos anteriores se descuentan
-sus unidades del stock inicial; recargar no restablece las existencias.
-
-Delivery: Pendiente → Aceptado → En preparación → Preparado → En camino →
-Entregado. Recojo: Pendiente → Aceptado → En preparación → Listo para recojo →
-Recojo completado. El cliente ve el mismo pedido y su estado actualizado.
-
-La demo comparte pedidos, clientes y stock mediante `localStorage` entre
-pestañas del mismo navegador y origen. Las sesiones son independientes por
-pestaña, de modo que se puede probar administrador, cliente y delivery a la
-vez. No sincroniza otros dispositivos o perfiles; para eso se necesita una
-base de datos compartida y autenticación de servidor. Las credenciales de esta
-demo se guardan localmente y no deben usarse como autenticación de producción.
+Los servicios y repositorios locales antiguos permanecen como referencia de la arquitectura y sus pruebas; los proveedores activos de la interfaz usan `cloud-state.service.ts`. Los datos del antiguo dominio de ChatGPT o de navegadores locales no se importan automáticamente a la base compartida.

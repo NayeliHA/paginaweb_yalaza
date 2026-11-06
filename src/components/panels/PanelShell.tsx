@@ -1,4 +1,5 @@
 "use client";
+import { showCloudError } from "@/services/cloud-state.service";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -54,7 +55,7 @@ export function PanelShell({ role, title, description, action, children }: {
   const [menuOpen, setMenuOpen] = useState(false);
   const links = role === "admin" ? adminLinks : deliveryLinks;
   const roleLabel = role === "admin" ? "Administración" : "Delivery";
-  function leave() { logout(); router.push("/ingresar"); }
+  function leave() { void logout().catch(showCloudError); router.push("/ingresar"); }
 
   return <section className="ops-panel" onKeyDown={event => { if (event.key === "Escape") setMenuOpen(false); }}>
     {menuOpen ? <button type="button" className="panel-backdrop" aria-label="Cerrar navegación" onClick={() => setMenuOpen(false)} /> : null}

@@ -1,5 +1,6 @@
 
 "use client";
+import { showCloudError } from "@/services/cloud-state.service";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -89,7 +90,7 @@ export function Navbar() {
           {session ? (
             <button
               type="button"
-              onClick={logout}
+              onClick={() => void logout().catch(showCloudError)}
               className="text-xs font-semibold uppercase tracking-[0.18em] text-muted hover:text-cream"
             >
               Salir
@@ -142,7 +143,7 @@ export function Navbar() {
                 <button
                   type="button"
                   onClick={() => {
-                    logout();
+                    void logout().catch(showCloudError);
                     setOpen(false);
                   }}
                   className="text-left text-sm uppercase tracking-[0.18em] text-muted"
