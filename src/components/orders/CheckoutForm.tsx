@@ -12,6 +12,8 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useOrder } from "@/components/orders/OrderProvider";
 import { Container } from "@/components/ui/Container";
 import { businessConfig } from "@/lib/business-config";
+import { quoteDelivery } from "@/lib/delivery-settings";
+import { useDeliverySettings } from "@/components/admin/DeliverySettingsEditor";
 import { formatPrice } from "@/lib/format";
 import { buildWhatsAppOrderUrl } from "@/lib/whatsapp";
 import {
@@ -35,9 +37,13 @@ export function CheckoutForm() {
   const [locationMessage, setLocationMessage] = useState("");
   const [error, setError] = useState("");
   const [confirmedOrder, setConfirmedOrder] = useState<CustomerOrder | null>(null);
+  const deliverySettings = useDeliverySettings();
+  const quote = quoteDelivery(district, deliverySettings);
+  const deliveryFee = fulfillmentType === "delivery" ? quote.fee : 0;
+  const total = Math.round((subtotal + deliveryFee) * 100) / 100;
   const paymentPreview = useMemo(
-    () => createPaymentProcessor(paymentMethod).prepare(subtotal),
-    [paymentMethod, subtotal],
+    () => createPaymentProcessor(paymentMethod).prepare(total),
+    [paymentMethod, total],
   );
 
   function requestLocation() {
@@ -150,7 +156,7 @@ export function CheckoutForm() {
                 ))}
               </ul>
               <p className="mt-4 flex justify-between font-semibold text-gold">
-                <span>Total de productos</span>
+                <span>Total con entrega</span>
                 <span>{formatPrice(confirmedOrder.total)}</span>
               </p>
               <p className="mt-2 flex justify-between text-sm text-muted">
@@ -394,15 +400,15 @@ export function CheckoutForm() {
               <span>{formatPrice(subtotal)}</span>
             </div>
             <div className="mt-3 flex justify-between font-semibold text-gold">
-              <span>Total de productos</span>
-              <span>{formatPrice(subtotal)}</span>
+              <span>Total con entrega</span>
+              <span>{formatPrice(total)}</span>
             </div>
             <div className="mt-3 flex justify-between text-sm text-muted">
               <span>Pago</span>
               <span className="text-cream">{paymentMethodLabels[paymentMethod]}</span>
             </div>
             <p className="mt-4 text-xs leading-5 text-muted">
-              La tarifa de delivery aún no está configurada; el total no la incluye.
+              {fulfillmentType === "delivery" ? `Delivery: ${formatPrice(deliveryFee)} · Tiempo estimado: ${quote.minutes} minutos. Se confirma con el local.` : "Recojo en local sin costo de envío."}
             </p>
           </aside>
         </div>

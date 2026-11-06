@@ -5,6 +5,7 @@ import type {
   OrderStatus,
 } from "@/models";
 import { getProducts } from "@/repositories/catalog.repository";
+import { quoteDelivery } from "@/lib/delivery-settings";
 import {
   customerRepository,
   type CustomerRepository,
@@ -168,7 +169,7 @@ export class OrderFacade {
       })
       .agregarEntrega(entrega.tipo, datosEntrega)
       .agregarProductos(items)
-      .agregarCostoEntrega(entrega.costoEntrega)
+      .agregarCostoEntrega(input.fulfillmentType === "delivery" ? quoteDelivery(delivery!.district).fee : entrega.costoEntrega)
       .agregarCodigoSeguridad(createSecurityCode())
       .agregarPago(input.paymentMethod, paymentProcessor.label)
       .build();

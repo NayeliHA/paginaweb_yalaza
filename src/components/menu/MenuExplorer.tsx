@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Category, Product } from "@/models";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { Container } from "@/components/ui/Container";
@@ -14,9 +15,10 @@ export function MenuExplorer({
   products: Product[];
   initialCategorySlug?: string;
 }) {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState(
-    categories.find((category) => category.slug === initialCategorySlug)?.id ?? "all",
+    categories.find((category) => category.slug === (initialCategorySlug ?? searchParams.get("categoria")))?.id ?? "all",
   );
   const normalizedQuery = query.trim().toLocaleLowerCase("es");
   const filteredProducts = products.filter((product) => {

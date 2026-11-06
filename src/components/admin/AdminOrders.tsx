@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/format";
 import type { CustomerOrder, FulfillmentType, PaymentMethod } from "@/models";
 import { getOrderActionLabel } from "@/patterns/behavioral/order-state";
 import { AdminOrderManager } from "@/components/admin/AdminOrderManager";
+import { BusinessDashboard } from "@/components/admin/BusinessDashboard";
 import { AdminStock } from "@/components/admin/AdminStock";
 import { PanelShell, PanelMetric, PanelEmpty, OrderStatusBadge } from "@/components/panels/PanelShell";
 
@@ -97,10 +98,6 @@ export function AdminOrders({
     filteredOrders.find((order) => order.id === selectedId) ??
     filteredOrders[0] ??
     null;
-  const pickupOrders = orders.filter((order) => order.fulfillmentType === "pickup");
-  const deliveryOrders = orders.filter(
-    (order) => order.fulfillmentType === "delivery",
-  );
   const pendingOrders = orders.filter((order) => order.status === "pending");
   const activeOrders = orders.filter(
     (order) => order.status !== "delivered" && order.status !== "picked_up",
@@ -108,11 +105,6 @@ export function AdminOrders({
   const finishedOrders = orders.filter(
     (order) => order.status === "delivered" || order.status === "picked_up",
   );
-  const revenue = orders.reduce((sum, order) => sum + order.total, 0);
-  const averageTicket = orders.length > 0 ? revenue / orders.length : 0;
-  const yapeOrders = orders.filter((order) => order.paymentMethod === "yape");
-  const cashOrders = orders.filter((order) => order.paymentMethod === "cash");
-  const cardOrders = orders.filter((order) => order.paymentMethod === "card");
 
   function handleVerify(orderId: string) {
     const result = verifyOrder(orderId, codes[orderId] ?? "");
@@ -144,10 +136,7 @@ export function AdminOrders({
         "Consulta los pedidos y acompaña cada etapa de su atención."
       } action={section !== "manage" ? <Link href="/admin/gestionar" className="panel-primary-link"><span aria-hidden="true">+</span> Registrar pedido</Link> : undefined}>
         {section === "manage" ? <AdminOrderManager /> : section === "all" ? <AdminOrderManager showForm={false} /> : section === "stock" ? <AdminStock /> : section === "dashboard" ? (
-          <AdminDashboard activeOrders={activeOrders.length} averageTicket={averageTicket}
-            cardOrders={cardOrders.length} cashOrders={cashOrders.length} deliveryOrders={deliveryOrders.length}
-            finishedOrders={finishedOrders.length} orders={orders} pendingOrders={pendingOrders.length}
-            pickupOrders={pickupOrders.length} revenue={revenue} yapeOrders={yapeOrders.length} />
+          <BusinessDashboard />
         ) : (
           <>
             <div className="panel-metrics mb-6">
@@ -239,136 +228,6 @@ function OrderListButton({
       </p>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><OrderStatusBadge status={order.status} /><span className="text-xs font-medium text-ink/60">{formatPrice(order.total)}</span></div>
     </button>
-  );
-}
-
-function AdminDashboard({
-  activeOrders,
-  averageTicket,
-  cardOrders,
-  cashOrders,
-  deliveryOrders,
-  finishedOrders,
-  orders,
-  pendingOrders,
-  pickupOrders,
-  revenue,
-  yapeOrders,
-}: {
-  activeOrders: number;
-  averageTicket: number;
-  cardOrders: number;
-  cashOrders: number;
-  deliveryOrders: number;
-  finishedOrders: number;
-  orders: CustomerOrder[];
-  pendingOrders: number;
-  pickupOrders: number;
-  revenue: number;
-  yapeOrders: number;
-}) {
-  const recentOrders = orders.slice(0, 5);
-  const total = orders.length;
-
-  return (
-    <>
-      <div className="panel-metrics">
-        <PanelMetric label="Importe de pedidos" value={formatPrice(revenue)} hint="Total registrado" icon="orders" />
-        <PanelMetric label="Ticket promedio" value={formatPrice(averageTicket)} hint="Importe por pedido" icon="dashboard" />
-        <PanelMetric label="Pedidos activos" value={activeOrders} hint="En atención" icon="truck" />
-        <PanelMetric label="Completados" value={finishedOrders} hint="Entregados y recogidos" icon="check" />
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        <ChartCard title="Modalidad de pedidos">
-          <DashboardBar label="Delivery" value={deliveryOrders} total={total} />
-          <DashboardBar label="Recojo" value={pickupOrders} total={total} />
-        </ChartCard>
-
-        <ChartCard title="Métodos de pago">
-          <DashboardBar label="Yape" value={yapeOrders} total={total} />
-          <DashboardBar label="Efectivo" value={cashOrders} total={total} />
-          <DashboardBar label="Tarjeta" value={cardOrders} total={total} />
-        </ChartCard>
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-        <ChartCard title="Estado de la operación">
-          <DashboardBar label="Por aceptar" value={pendingOrders} total={total} />
-          <DashboardBar label="En proceso" value={activeOrders - pendingOrders} total={total} />
-          <DashboardBar label="Completados" value={finishedOrders} total={total} />
-          <p className="mt-4 text-xs text-ink/55">{total ? `${Math.round(finishedOrders / total * 100)}% de los pedidos completados.` : "Las estadísticas se actualizarán al registrar tu primer pedido."}</p>
-        </ChartCard>
-
-        <ChartCard title="Últimos pedidos">
-          {recentOrders.length === 0 ? (
-            <PanelEmpty title="Tu próximo pedido va aquí" description="Registra el primero para comenzar a ver la actividad del negocio." />
-          ) : (
-            <div className="space-y-3">
-              {recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between rounded-xl bg-[#f8fafc] px-4 py-3"
-                >
-                  <div>
-                    <p className="font-sans font-semibold text-lg text-ink">
-                      {order.id.slice(-9)}
-                    </p>
-                    <p className="text-xs font-bold text-ink/55">
-                      {order.fulfillmentType === "delivery" ? "Delivery" : "Recojo"} ·{" "}
-                      {order.paymentLabel}
-                    </p>
-                  </div>
-                  <p className="font-semibold text-ember">{formatPrice(order.total)}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </ChartCard>
-      </div>
-    </>
-  );
-}
-
-function ChartCard({
-  children,
-  title,
-}: {
-  children: ReactNode;
-  title: string;
-}) {
-  return (
-    <section className="rounded-xl border border-ink/10 bg-white p-5 shadow-sm">
-      <h3 className="font-sans font-semibold text-lg text-ink">{title}</h3>
-      <div className="mt-4 space-y-4">{children}</div>
-    </section>
-  );
-}
-
-function DashboardBar({
-  label,
-  total,
-  value,
-}: {
-  label: string;
-  total: number;
-  value: number;
-}) {
-  const width = total > 0 ? Math.round((value / total) * 100) : 0;
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between text-sm font-semibold text-ink">
-        <span>{label}</span>
-        <span>{value}</span>
-      </div>
-      <div className="h-3 overflow-hidden rounded-full bg-[#f2f4f7]">
-        <div
-          className="h-full rounded-full bg-ember transition-all"
-          style={{ width: `${width}%` }}
-        />
-      </div>
-    </div>
   );
 }
 

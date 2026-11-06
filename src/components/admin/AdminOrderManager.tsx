@@ -5,6 +5,8 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useOrder } from "@/components/orders/OrderProvider";
 import { getProducts } from "@/repositories/catalog.repository";
 import { formatPrice } from "@/lib/format";
+import { quoteDelivery } from "@/lib/delivery-settings";
+import { useDeliverySettings } from "@/components/admin/DeliverySettingsEditor";
 import type { CustomerOrder, FulfillmentType, PaymentMethod } from "@/models";
 import { OrderStatusBadge } from "@/components/panels/PanelShell";
 
@@ -119,7 +121,9 @@ function AdminOrderForm({ order, onSaved, onCancel }: {
     `${item.name} ${item.lastName} ${item.email}`.toLocaleLowerCase("es").includes(customerQuery.toLocaleLowerCase("es")));
   const items = products.filter(product => (quantities[product.id] ?? 0) > 0)
     .map(product => ({ product, quantity: quantities[product.id] }));
-  const total = items.reduce((sum, item) => sum + item.quantity * item.product.price, 0);
+  const deliverySettings = useDeliverySettings();
+  const deliveryFee = fulfillmentType === "delivery" ? quoteDelivery(district, deliverySettings).fee : 0;
+  const total = items.reduce((sum, item) => sum + item.quantity * item.product.price, 0) + deliveryFee;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -195,6 +199,7 @@ function AdminOrderForm({ order, onSaved, onCancel }: {
       </div>
       <div className="mt-5 rounded-xl bg-[#f2f4f7] p-4">
         {items.length ? <ul className="space-y-1 text-sm">{items.map(({product, quantity}) => <li key={product.id}>{quantity} × {product.name} — {formatPrice(product.price * quantity)}</li>)}</ul> : <p className="text-sm text-ink/60">Selecciona al menos un producto.</p>}
+        <p className="mt-3 text-sm">Costo de entrega: {formatPrice(deliveryFee)}</p>
         <p className="mt-3 text-lg font-semibold">Total: {formatPrice(total)}</p>
       </div>
       {error ? <p role="alert" className="mt-4 text-sm font-bold text-red-700">{error}</p> : null}

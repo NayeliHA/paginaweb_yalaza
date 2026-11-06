@@ -17,6 +17,7 @@ function runtime(shared = new Map([["yalaza:order-data:v2", JSON.stringify({ ord
     process: { env: {} },
     localStorage: storage(shared), sessionStorage: storage(new Map()),
     window: {
+      localStorage: storage(shared),
       addEventListener: (name, callback) => { if (name === "storage") listeners.add(callback); },
       removeEventListener: (name, callback) => { if (name === "storage") listeners.delete(callback); },
     },
@@ -61,6 +62,18 @@ function input(app, fulfillmentType = "pickup") {
 function cart(app, quantity = 2) {
   return [{ product: app.products[0], quantity }];
 }
+
+test("delivery uses district rates, includes fee in total and retains saved order prices", () => {
+  const app = runtime(); loginAdmin(app);
+  app.shared.set("yalaza:delivery-settings:v1", JSON.stringify({ baseFee: 2, minutes: 30, zones: [{ district: "Lima", fee: 5, minutes: 40 }] }));
+  const saved = app.orders.saveAdminOrder(input(app, "delivery"), cart(app));
+  assert.equal(saved.deliveryFee, 5);
+  assert.equal(saved.total, saved.subtotal + 5);
+  app.shared.set("yalaza:delivery-settings:v1", JSON.stringify({ baseFee: 8, minutes: 30, zones: [] }));
+  assert.equal(app.orders.loadOrders().find(order => order.id === saved.id).deliveryFee, 5);
+  assert.equal(app.orders.saveAdminOrder(input(app, "delivery"), cart(app)).deliveryFee, 8);
+  assert.equal(app.orders.saveAdminOrder(input(app, "pickup"), cart(app)).deliveryFee, 0);
+});
 
 test("startup inserts 20 demo customers once and preserves existing users", () => {
   const app = runtime();

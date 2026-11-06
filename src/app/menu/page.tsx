@@ -1,19 +1,14 @@
 import { getMenuContent } from "@/controllers/catalog.controller";
 import { MenuExplorer } from "@/components/menu/MenuExplorer";
+import { Suspense } from "react";
 
-export default async function MenuPage({
-  searchParams,
-}: PageProps<"/menu">) {
+export default function MenuPage() {
   const { categories, products } = getMenuContent();
-  const params = await searchParams;
 
   return (
-    <MenuExplorer
+    <Suspense fallback={<p className="p-10" role="status">Cargando menú...</p>}><MenuExplorer
       categories={categories}
       products={products}
-      initialCategorySlug={
-        typeof params.categoria === "string" ? params.categoria : undefined
-      }
-    />
+    /></Suspense>
   );
 }
