@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
-import type { AuthSession, CartItem, CreateOrderInput, CustomerOrder, RegisteredUser } from "@/models";
+import type { AuthSession, CartItem, CreateOrderInput, CustomerOrder, RegisteredUser, Product } from "@/models";
 import { getProducts } from "@/repositories/catalog.repository";
 import { demoCustomers } from "@/lib/demo-customers";
 import { createDemoOrders } from "@/lib/demo-orders";
@@ -18,6 +18,9 @@ export interface SharedData {
   deliverySettings: DeliverySettings;
   analyticsSettings: AnalyticsSettings;
   receipts: { key: string; userId: string; result: unknown }[];
+  products?: import("@/models").Product[];
+  ingredientInventory?: Record<string, number>;
+  loginAttempts?: Record<string, { count: number; windowStarted: number; blockedUntil: number }>;
 }
 export type Command = { action: string; args?: unknown[]; requestId?: string };
 export class DomainError extends Error { constructor(message: string, public status = 400) { super(message); } }
@@ -62,7 +65,7 @@ export function publicSnapshot(data: SharedData, token: string) {
     session: user ? sessionFor(user) : null,
     users: user?.role === "admin" ? data.users.filter(u => u.role === "customer").map(({ passwordHash: _, ...u }) => ({ ...u, age: ageOn(u.birthDate), password: "" })) : [],
     orders: orders.map(order => user?.role === "delivery" ? { ...order, securityCode: "" } : order),
-    inventory: data.inventory, deliverySettings: data.deliverySettings,
+    inventory: data.inventory, products: data.products ?? getProducts(), ingredientInventory: data.ingredientInventory ?? {}, deliverySettings: data.deliverySettings,
     analyticsSettings: user?.role === "admin" ? data.analyticsSettings : readAnalyticsSettings(null),
   };
 }
@@ -86,7 +89,7 @@ function buildOrder(data: SharedData, user: User, raw: unknown, rawCart: unknown
   if (!Array.isArray(rawCart) || !rawCart.length || rawCart.length > 100) throw new DomainError("Agrega productos al pedido.");
   const seen = new Set<string>();
   const items = (rawCart as CartItem[]).map(item => {
-    const product = getProducts().find(p => p.id === item?.product?.id && p.available);
+    const product = (data.products ?? getProducts()).find(p => p.id === item?.product?.id && p.available);
     if (!product || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || seen.has(product.id)) throw new DomainError("Productos o cantidades inválidas.");
     seen.add(product.id);
     return { productId: product.id, name: product.name, unitPrice: product.price, quantity: item.quantity };
@@ -106,14 +109,30 @@ function buildOrder(data: SharedData, user: User, raw: unknown, rawCart: unknown
 }
 function reserve(data: SharedData, order: CustomerOrder | null, previous?: CustomerOrder) {
   const inventory = { ...data.inventory };
-  if (previous?.active !== false) for (const item of previous?.items ?? []) inventory[item.productId] += item.quantity;
+  if (previous?.active !== false) for (const item of previous?.items ?? []) {
+    inventory[item.productId] += item.quantity;
+    const product = (data.products ?? getProducts()).find(p => p.id === item.productId);
+    for (const ingredient of product?.ingredients ?? []) {
+      const key = ingredient.name.trim().toLocaleLowerCase("es");
+      const ingredientInventory = data.ingredientInventory ?? (data.ingredientInventory = {});
+      ingredientInventory[key] = (ingredientInventory[key] ?? 0) + ingredient.quantity * item.quantity;
+    }
+  }
   for (const item of order?.items ?? []) {
     if ((inventory[item.productId] ?? 0) < item.quantity) throw new DomainError(`Stock insuficiente de ${item.name}: quedan ${inventory[item.productId] ?? 0} unidades.`, 409);
     inventory[item.productId] -= item.quantity;
+    const product = (data.products ?? getProducts()).find(p => p.id === item.productId);
+    for (const ingredient of product?.ingredients ?? []) {
+      const key = ingredient.name.trim().toLocaleLowerCase("es");
+      const ingredientInventory = data.ingredientInventory ?? (data.ingredientInventory = {});
+      const needed = ingredient.quantity * item.quantity;
+      if ((ingredientInventory[key] ?? 0) < needed) throw new DomainError(`Stock insuficiente de ${ingredient.name}: quedan ${ingredientInventory[key] ?? 0} ${ingredient.unit}.`, 409);
+      ingredientInventory[key] -= needed;
+    }
   }
   data.inventory = inventory;
 }
-export function executeCommand(data: SharedData, token: string, command: Command): { result?: unknown; token?: string } {
+export function executeCommand(data: SharedData, token: string, command: Command): { result?: unknown; token?: string; error?: string; status?: number; retryAfter?: number } {
   const args = command.args ?? [];
   const user = currentUser(data, token);
   if (command.action === "login" || command.action === "register") {
@@ -132,10 +151,22 @@ export function executeCommand(data: SharedData, token: string, command: Command
       found = { id: `USR-${randomUUID()}`, role: "customer", name: text(input.name, "el nombre", 2), lastName: text(input.lastName, "el apellido", 2), email, phone, birthDate, createdAt: new Date().toISOString(), passwordHash: hashPassword(password) };
       data.users.push(found);
     } else {
+      const now = Date.now();
+      const attempts = data.loginAttempts ?? (data.loginAttempts = {});
+      const key = createHash("sha256").update(email).digest("hex");
+      const saved = attempts[key];
+      if (saved?.blockedUntil && saved.blockedUntil > now) return { error: "Demasiados intentos. Vuelve a intentarlo en 30 segundos.", status: 429, retryAfter: Math.ceil((saved.blockedUntil - now) / 1000) };
       found = data.users.find(u => u.email === email && u.role === input.role);
       // Do comparable work for unknown accounts too.
       const valid = passwordMatches(password, found?.passwordHash ?? data.users[0].passwordHash);
-      if (!found || !valid) throw new DomainError("Correo, contraseña o rol incorrecto.", 401);
+      if (!found || !valid) {
+        const current = saved && now - saved.windowStarted < 30_000 ? saved : { count: 0, windowStarted: now, blockedUntil: 0 };
+        current.count++;
+        if (current.count >= 5) current.blockedUntil = now + 30_000;
+        attempts[key] = current;
+        return { error: current.blockedUntil > now ? "Demasiados intentos. Vuelve a intentarlo en 30 segundos." : "Correo, contraseña o rol incorrecto.", status: current.blockedUntil > now ? 429 : 401, retryAfter: current.blockedUntil > now ? 30 : undefined };
+      }
+      delete attempts[key];
     }
     const nextToken = randomBytes(32).toString("hex");
     data.sessions = data.sessions.filter(s => s.expires > Date.now()).slice(-499);
@@ -164,6 +195,23 @@ export function executeCommand(data: SharedData, token: string, command: Command
       if (JSON.stringify(settings) !== raw || settings.zones.length > 100) throw new DomainError("Revisa las tarifas de delivery.");
       data.deliverySettings = settings;
     } else data.analyticsSettings = readAnalyticsSettings(JSON.stringify(args[0]));
+  } else if (command.action === "saveProduct") {
+    requireRole(user, "admin");
+    const raw = args[0] as Product;
+    const current = data.products ?? (data.products = getProducts().map(p => ({ ...p })));
+    const index = current.findIndex(p => p.id === raw?.id);
+    if (index < 0 || typeof raw.name !== "string" || raw.name.trim().length < 2 || !Number.isFinite(raw.price) || raw.price < 0 || raw.price > 10000 || !Array.isArray(raw.ingredients) || raw.ingredients.length > 30 || raw.ingredients.some(i => !i || typeof i.name !== "string" || i.name.trim().length < 2 || !Number.isFinite(i.quantity) || i.quantity <= 0 || i.quantity > 10000 || typeof i.unit !== "string" || !i.unit.trim())) throw new DomainError("Revisa el precio y los ingredientes del plato.");
+    current[index] = { ...current[index], name: raw.name.trim(), description: typeof raw.description === "string" ? raw.description.trim().slice(0, 500) : current[index].description, price: Math.round(raw.price * 100) / 100, available: Boolean(raw.available), ingredients: raw.ingredients.map(i => ({ name: i.name.trim(), quantity: i.quantity, unit: i.unit.trim() })) };
+    const ingredientInventory = data.ingredientInventory ?? (data.ingredientInventory = {});
+    for (const ingredient of current[index].ingredients ?? []) { const key = ingredient.name.toLocaleLowerCase("es"); ingredientInventory[key] ??= 0; }
+  } else if (command.action === "updateIngredientStock") {
+    requireRole(user, "admin");
+    const key = text(args[0], "el ingrediente", 2, 100).toLocaleLowerCase("es");
+    const quantity = args[1];
+    if (!Number.isFinite(quantity) || Number(quantity) < 0 || Number(quantity) > 1000000) throw new DomainError("Ingresa una cantidad válida.");
+    const known = (data.products ?? getProducts()).some(p => p.ingredients?.some(i => i.name.toLocaleLowerCase("es") === key));
+    if (!known) throw new DomainError("El ingrediente no está asociado a ningún plato.");
+    (data.ingredientInventory ?? (data.ingredientInventory = {}))[key] = Number(quantity);
   } else if (command.action === "updateStock") {
     requireRole(user, "admin");
     const id = text(args[0], "el producto"); const quantity = args[1];

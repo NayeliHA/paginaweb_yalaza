@@ -1,12 +1,13 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { AuthSession, CustomerOrder, RegisteredUser } from "@/models";
+import type { AuthSession, CustomerOrder, RegisteredUser, Product } from "@/models";
+import { getProducts } from "@/repositories/catalog.repository";
 import { readDeliverySettings, type DeliverySettings } from "@/lib/delivery-settings";
 import { readAnalyticsSettings, type AnalyticsSettings } from "@/lib/business-analytics";
 
-interface CloudState { session: AuthSession | null; users: RegisteredUser[]; orders: CustomerOrder[]; inventory: Record<string, number>; deliverySettings: DeliverySettings; analyticsSettings: AnalyticsSettings; hydrated: boolean; error: string; syncing: boolean }
-const initial: CloudState = { session: null, users: [], orders: [], inventory: {}, deliverySettings: readDeliverySettings(null), analyticsSettings: readAnalyticsSettings(null), hydrated: false, error: "", syncing: false };
+interface CloudState { session: AuthSession | null; users: RegisteredUser[]; orders: CustomerOrder[]; inventory: Record<string, number>; products: Product[]; ingredientInventory: Record<string, number>; deliverySettings: DeliverySettings; analyticsSettings: AnalyticsSettings; hydrated: boolean; error: string; syncing: boolean }
+const initial: CloudState = { session: null, users: [], orders: [], inventory: {}, products: getProducts(), ingredientInventory: {}, deliverySettings: readDeliverySettings(null), analyticsSettings: readAnalyticsSettings(null), hydrated: false, error: "", syncing: false };
 let state = initial;
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -17,7 +18,7 @@ function emit(patch: Partial<CloudState>) { state = { ...state, ...patch }; list
 async function request(method: string, body?: unknown, accessToken = bearer) {
   const response = await fetch("/api/store/", { method, cache: "no-store", headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(20000) });
   const value = await response.json();
-  if (!response.ok) throw new Error(value.error || "No se pudo sincronizar con el servidor.");
+  if (!response.ok) { const error = new Error(value.error || "No se pudo sincronizar con el servidor.") as Error & { retryAfter?: number }; error.retryAfter = value.retryAfter; throw error; }
   return value;
 }
 export async function refreshCloud() {
@@ -43,6 +44,7 @@ function subscribe(listener: () => void) {
   return () => { listeners.delete(listener); if (!listeners.size && timer) { clearInterval(timer); timer = undefined; window.removeEventListener("focus", refreshCloud); window.removeEventListener("online", refreshCloud); } };
 }
 export function useCloudState() { return useSyncExternalStore(subscribe, () => state, () => initial); }
+export function getCloudProducts() { return state.products; }
 export async function cloudCommand<T = void>(action: string, ...args: unknown[]): Promise<T> {
   mutationCount++; generation++;
   emit({ syncing: true, error: "" });
@@ -56,7 +58,10 @@ export async function cloudCommand<T = void>(action: string, ...args: unknown[])
     return value.result as T;
   } catch (error) {
     const message = error instanceof Error ? error.message : "No se pudo guardar el cambio.";
-    emit({ error: message }); throw new Error(message);
+    emit({ error: message });
+    const forwarded = new Error(message) as Error & { retryAfter?: number };
+    forwarded.retryAfter = (error as Error & { retryAfter?: number })?.retryAfter;
+    throw forwarded;
   } finally { mutationCount--; generation++; emit({ syncing: mutationCount > 0 }); }
 }
 export function showCloudError(error: unknown) { emit({ error: error instanceof Error ? error.message : "No se pudo guardar el cambio." }); }

@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     if (!command || typeof command.action !== "string" || (command.args !== undefined && !Array.isArray(command.args))) throw new DomainError("Solicitud inválida.");
     const bearer = token(request);
     const { data, result } = await transact(data => executeCommand(data, bearer, command));
+    if (result.error) return NextResponse.json({ error: result.error, retryAfter: result.retryAfter }, { status: result.status ?? 401, headers: { ...headers, ...(result.retryAfter ? { "Retry-After": String(result.retryAfter) } : {}) } });
     return NextResponse.json({ ...result, snapshot: publicSnapshot(data, result.token ?? bearer) }, { headers });
   } catch (error) { return failure(error); }
 }

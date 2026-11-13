@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import type { Category, Product } from "@/models";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { Container } from "@/components/ui/Container";
+import { useCloudState } from "@/services/cloud-state.service";
 
 export function MenuExplorer({
   categories,
@@ -16,6 +17,8 @@ export function MenuExplorer({
   initialCategorySlug?: string;
 }) {
   const searchParams = useSearchParams();
+  const cloud = useCloudState();
+  products = cloud.products.length ? cloud.products : products;
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState(
     categories.find((category) => category.slug === (initialCategorySlug ?? searchParams.get("categoria")))?.id ?? "all",

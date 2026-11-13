@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentProps, type FormEvent } from "react";
+import { useEffect, useState, type ComponentProps, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { UserRole } from "@/models";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -31,10 +31,17 @@ export function AuthAccess() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [retrySeconds, setRetrySeconds] = useState(0);
+  useEffect(() => {
+    if (!retrySeconds) return;
+    const timer = window.setTimeout(() => setRetrySeconds(seconds => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [retrySeconds]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    if (retrySeconds > 0) return;
     try {
       const session =
         mode === "register"
@@ -49,6 +56,8 @@ export function AuthAccess() {
           : await login({ role, email, password });
       router.push(redirects[session.role]);
     } catch (authError) {
+      const retryAfter = (authError as Error & { retryAfter?: number }).retryAfter;
+      if (retryAfter) setRetrySeconds(retryAfter);
       setError(
         authError instanceof Error
           ? authError.message
@@ -204,11 +213,14 @@ export function AuthAccess() {
               </p>
             ) : null}
 
+            {retrySeconds > 0 ? <p className="mt-3 text-sm font-semibold text-gold" role="status">Por seguridad, espera {retrySeconds} {retrySeconds === 1 ? "segundo" : "segundos"} para volver a intentarlo.</p> : null}
+
             <button
               type="submit"
-              className="mt-6 w-full rounded-full bg-ember px-6 py-3 text-sm font-bold uppercase text-ink transition hover:bg-flame"
+              disabled={retrySeconds > 0}
+              className="mt-6 w-full rounded-full bg-ember px-6 py-3 text-sm font-bold uppercase text-ink transition hover:bg-flame disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {mode === "register" ? "Crear cuenta" : "Entrar"}
+              {retrySeconds > 0 ? `Espera ${retrySeconds}s` : mode === "register" ? "Crear cuenta" : "Entrar"}
             </button>
           </form>
         </div>

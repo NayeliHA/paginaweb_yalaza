@@ -8,4 +8,5 @@ export interface Product {
   available: boolean;
   image?: string;
   spiceLevel?: 1 | 2 | 3;
+  ingredients?: { name: string; quantity: number; unit: string }[];
 }
